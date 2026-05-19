@@ -107,8 +107,8 @@ export function convert(
     }
   }
 
-  // No conversion available
-  _ = ing // suppress unused var; ing used implicitly by helpers
+  // No conversion available — ing used implicitly by helpers above
+  void ing
   return null
 }
 
