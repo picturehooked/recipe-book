@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import Fuse from 'fuse.js'
+import Fuse, { type IFuseOptions } from 'fuse.js'
 import type { RecipeSummary, FilterState } from '@/types'
 
-const fuseOptions: Fuse.IFuseOptions<RecipeSummary> = {
+const fuseOptions: IFuseOptions<RecipeSummary> = {
   keys: [
     { name: 'title',           weight: 0.6 },
     { name: 'category.name',   weight: 0.2 },
