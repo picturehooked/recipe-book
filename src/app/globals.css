@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Google Fonts ---------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap');
+
+/* ---- Base layer ------------------------------------------ */
+@layer base {
+  :root {
+    --font-sans:  'Inter', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Playfair Display', Georgia, Cambria, serif;
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Comfortable tap targets */
+  button, a, label, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent layout shift from scrollbar */
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  /* Recipe body text — explicitly larger */
+  .recipe-base {
+    font-size: 1.0625rem;  /* 17px */
+    line-height: 1.65;
+  }
+  .recipe-lg {
+    font-size: 1.1875rem;  /* 19px */
+    line-height: 1.65;
+  }
+
+  /* Suppress browser number input spinners */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+
+  /* Smooth scrolling */
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+
+  /* Hide scrollbar utility */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---- Slate-850 custom dark bg colour -------------------- */
+/* Tailwind doesn't include 850 out of the box */
+.bg-slate-850 {
+  background-color: #1A2233;
+}
+.dark .dark\:bg-slate-850 {
+  background-color: #1A2233;
+}
+
+/* ---- Font stack overrides -------------------------------- */
+.font-serif {
+  font-family: var(--font-serif);
+}
+.font-sans {
+  font-family: var(--font-sans);
+}
