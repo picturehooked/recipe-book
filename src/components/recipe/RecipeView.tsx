@@ -13,9 +13,9 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { FavouriteButton } from '@/components/ui/FavouriteButton'
 import {
-  formatTime, formatTotalTime, formatServings, formatQuantity
+  formatTime, formatTotalTime, formatServings
 } from '@/lib/utils/formatters'
-import { scaleQuantity } from '@/lib/utils/conversions'
+import { scaleQuantity, formatQuantity } from '@/lib/utils/conversions'
 import { useDeleteRecipe } from '@/hooks/useRecipes'
 import type { Recipe, RecipeIngredient } from '@/types'
 
