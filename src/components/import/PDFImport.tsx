@@ -69,7 +69,7 @@ export function PDFImport({ onResult }: PDFImportProps) {
         setStatus('Low text content — running OCR…')
         setProgress(65)
 
-        const Tesseract = (await import('tesseract.js')).default
+        const { createWorker } = await import('tesseract.js')
 
         // Render first page to canvas for OCR
         const page    = await pdf.getPage(1)
@@ -80,14 +80,19 @@ export function PDFImport({ onResult }: PDFImportProps) {
         const ctx = canvas.getContext('2d')!
         await page.render({ canvasContext: ctx, viewport }).promise
 
-        const ocrResult = await Tesseract.recognize(canvas, 'eng', {
-          logger: (m) => {
+        const worker = await createWorker('eng', 1, {
+          workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+          corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core-simd-lstm.wasm.js',
+          langPath:   'https://tessdata.projectnaptha.com/4.0.0',
+          logger: (m: any) => {
             if (m.status === 'recognizing text') {
               setProgress(65 + Math.round(m.progress * 25))
             }
           },
         })
-        fullText = ocrResult.data.text
+        const { data: { text } } = await worker.recognize(canvas)
+        await worker.terminate()
+        fullText = text
       }
 
       setProgress(90)

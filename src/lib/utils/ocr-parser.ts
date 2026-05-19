@@ -10,8 +10,8 @@ import { parseQuantity } from './formatters'
 
 const UNIT_ALIASES: Record<string, string> = {
   'grams': 'g', 'gram': 'g',
-  'kilograms': 'kg', 'kilogram': 'kg', 'kg': 'kg',
-  'millilitres': 'ml', 'millilitre': 'ml', 'milliliters': 'ml',
+  'kilograms': 'kg', 'kilogram': 'kg',
+  'millilitres': 'ml', 'millilitre': 'ml', 'milliliters': 'ml', 'milliliter': 'ml',
   'litres': 'l', 'litre': 'l', 'liter': 'l', 'liters': 'l',
   'teaspoon': 'tsp', 'teaspoons': 'tsp',
   'tablespoon': 'tbsp', 'tablespoons': 'tbsp',
@@ -31,27 +31,27 @@ const SECTION_MARKERS = [
 ]
 
 const METHOD_MARKERS = [
-  /^method$/i,
-  /^instructions?$/i,
-  /^directions?$/i,
-  /^steps?$/i,
+  /^method\b/i,
+  /^instructions?\b/i,
+  /^directions?\b/i,
+  /^steps?\b/i,
   /^how to (make|cook|prepare)/i,
-  /^preparation$/i,
+  /^preparation\b/i,
 ]
 
 const INGREDIENT_MARKERS = [
-  /^ingredients?$/i,
-  /^you('ll| will) need$/i,
-  /^what you need$/i,
+  /^ingredients?\b/i,        // matches "Ingredients", "Ingredients Serves 4", etc.
+  /^you('ll| will) need\b/i,
+  /^what you need\b/i,
 ]
 
 const NOISE_PATTERNS = [
-  /^\s*$/,                          // blank
+  /^\s*$/,
   /^[A-Z][^.!?]*\b(story|tale|blog|share|pin|save|print|jump)\b/i,
   /^(published|updated|posted|by|written by|author)/i,
   /^(advertisement|advert|sponsored)/i,
-  /^(serves?|portions?|yield):\s*[\d–-]+/i,   // captured separately
-  /^(prep|cook|total)\s*time/i,               // captured separately
+  /^(serves?|portions?|yield):\s*[\d–-]+$/i,
+  /^(prep|cook|total)\s*time/i,
   /^(calories|nutrition|kcal)/i,
   /^(subscribe|newsletter|email|sign up)/i,
   /^(comments?|leave a comment|reply|responses?)/i,
@@ -59,9 +59,44 @@ const NOISE_PATTERNS = [
   /^(pin it|save recipe|print recipe|jump to recipe)/i,
 ]
 
-// Ingredient line pattern: optional quantity + optional unit + ingredient text
+// Ingredient line: optional quantity + optional unit + ingredient text
 const INGREDIENT_PATTERN =
   /^([\d½¼¾⅓⅔⅛⅜⅝⅞\s\/\-\.]+)?\s*(g|kg|ml|l|tsp|tbsp|cups?|teaspoons?|tablespoons?|grams?|kilograms?|millilitres?|litres?|oz|lb|pounds?|ounces?)?\s+(.+)/i
+
+// ---- Bullet / OCR-noise stripping ---------------------------
+// Tesseract commonly misreads bullet characters (•) as:
+// *, -, –, ¢, ©, °, and single letters like e, o, c
+function stripBullet(line: string): string {
+  // Genuine bullet/list characters
+  const stripped = line.replace(/^[•·○◦▪▸►‣⁃⁎●]\s*/, '')
+  if (stripped !== line) return stripped.trim()
+
+  // Common OCR symbol misreads followed by whitespace
+  const symStripped = line.replace(/^[*\-–—¢©®°~]\s+/, '')
+  if (symStripped !== line) return symStripped.trim()
+
+  // Single lowercase letter OCR'd as a bullet — only strip when what follows
+  // looks like a quantity or capitalised word (not a real word like "e.g.")
+  const letterStripped = line.replace(/^[eoc]\s+(?=[\d½¼¾⅓⅔⅛A-Z])/, '')
+  if (letterStripped !== line) return letterStripped.trim()
+
+  return line
+}
+
+// ---- Fraction normalisation ---------------------------------
+// OCR sometimes returns Unicode fractions or splits them oddly
+function normaliseFractions(line: string): string {
+  return line
+    .replace(/½/g, '0.5')
+    .replace(/¼/g, '0.25')
+    .replace(/¾/g, '0.75')
+    .replace(/⅓/g, '0.33')
+    .replace(/⅔/g, '0.67')
+    .replace(/⅛/g, '0.125')
+    .replace(/1\s*\/\s*2/g, '0.5')
+    .replace(/1\s*\/\s*4/g, '0.25')
+    .replace(/3\s*\/\s*4/g, '0.75')
+}
 
 export function parseOcrText(rawText: string): ImportedRecipe {
   const lines = rawText
@@ -81,7 +116,6 @@ export function parseOcrText(rawText: string): ImportedRecipe {
     ingredients: [],
   }
   let stepNumber = 0
-  let methodBuffer = ''
 
   const pushCurrentSection = () => {
     if (currentSection.ingredients.length > 0) {
@@ -90,15 +124,22 @@ export function parseOcrText(rawText: string): ImportedRecipe {
   }
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+    const rawLine = lines[i]
+
+    // Strip OCR bullet noise, then normalise fractions
+    const line = normaliseFractions(stripBullet(rawLine))
 
     // ---- Skip noise ----------------------------------------
     if (NOISE_PATTERNS.some(p => p.test(line))) continue
+    if (line.length < 2) continue
 
-    // ---- Title detection (first substantial non-marker line) ----
+    // ---- Title detection (first substantial non-marker line) ---
     if (!title && line.length > 3 && line.length < 120 && phase === 'scanning') {
-      title = line
-      continue
+      // Don't use the line as title if it looks like an ingredient marker
+      if (!INGREDIENT_MARKERS.some(p => p.test(line)) && !METHOD_MARKERS.some(p => p.test(line))) {
+        title = line
+        continue
+      }
     }
 
     // ---- Phase markers ------------------------------------
@@ -115,16 +156,13 @@ export function parseOcrText(rawText: string): ImportedRecipe {
       continue
     }
 
-    // ---- Section sub-headers within ingredients -----------
+    // ---- Ingredient phase ------------------------------------
     if (phase === 'ingredients') {
+      // Sub-section header?
       const isSectionHeader = SECTION_MARKERS.some(p => p.test(line))
       if (isSectionHeader && line.length < 60 && !INGREDIENT_PATTERN.test(line)) {
         pushCurrentSection()
-        currentSection = {
-          title: line,
-          display_order: sections.length,
-          ingredients: [],
-        }
+        currentSection = { title: line, display_order: sections.length, ingredients: [] }
         continue
       }
 
@@ -134,7 +172,7 @@ export function parseOcrText(rawText: string): ImportedRecipe {
         continue
       }
 
-      // Unrecognised line in ingredient phase — try treating as method start
+      // Unrecognised line — might be start of method
       if (looksLikeMethodStep(line)) {
         phase = 'method'
         pushCurrentSection()
@@ -143,22 +181,20 @@ export function parseOcrText(rawText: string): ImportedRecipe {
 
     // ---- Method steps -------------------------------------
     if (phase === 'method') {
-      if (stepNumber >= 10) continue  // max 10 steps
+      if (stepNumber >= 10) continue
 
-      // Strip numbered prefixes: "1." "Step 1:" "1)" etc.
       const cleaned = line
         .replace(/^(step\s*)?\d+[\.\):\s]+/i, '')
         .trim()
 
       if (!cleaned) continue
 
-      // Accumulate short continuations into previous step
+      // Short continuation — append to previous step
       if (cleaned.length < 40 && stepNumber > 0 && !cleaned.match(/^[A-Z]/)) {
         methodSteps[stepNumber - 1] += ' ' + cleaned
         continue
       }
 
-      // Condense long paragraphs to ~2 lines: keep first 2 sentences
       const condensed = condenseParagraph(cleaned)
       if (condensed) {
         methodSteps.push(condensed)
@@ -204,30 +240,32 @@ function parseIngredientLine(
   line: string,
   order: number
 ): RecipeIngredientInput | null {
-  // Too short or too long to be an ingredient
-  if (line.length < 2 || line.length > 150) return null
+  if (line.length < 2 || line.length > 200) return null
+
+  // Skip lines that look like section headers or step numbers
+  if (/^\d+\.?\s*$/.test(line)) return null
 
   const match = line.match(INGREDIENT_PATTERN)
   if (!match) {
-    // No unit found — could still be "2 eggs" or "Salt to taste"
-    const simpleMatch = line.match(/^([\d½¼¾⅓⅔⅛]+\.?\d*)\s+(.+)/)
+    // No recognised unit — could be "2 eggs" or just "Salt to taste"
+    const simpleMatch = line.match(/^([\d\.]+)\s+(.+)/)
     if (simpleMatch) {
       return {
         ingredient_name: simpleMatch[2].trim(),
-        quantity: parseQuantity(simpleMatch[1])?.toString() ?? '',
-        unit: 'number',
-        preparation: '',
-        display_order: order,
+        quantity:        simpleMatch[1],
+        unit:            'number',
+        preparation:     '',
+        display_order:   order,
       }
     }
-    // Treat as plain ingredient with no quantity
-    if (line.split(' ').length <= 6) {
+    // Plain ingredient, no quantity — accept if reasonably short
+    if (line.split(' ').length <= 8 && !/[.!?]$/.test(line)) {
       return {
         ingredient_name: line,
-        quantity: '',
-        unit: '',
-        preparation: '',
-        display_order: order,
+        quantity:        '',
+        unit:            '',
+        preparation:     '',
+        display_order:   order,
       }
     }
     return null
@@ -235,9 +273,9 @@ function parseIngredientLine(
 
   const rawQty  = (match[1] ?? '').trim()
   const rawUnit = (match[2] ?? '').trim().toLowerCase()
-  const rest    = (match[3] ?? '').trim()
+  let rest      = (match[3] ?? '').trim()
 
-  // Separate ingredient name from preparation note (comma-separated or bracketed)
+  // Separate prep note (comma or bracket)
   let ingredientName = rest
   let preparation    = ''
 
@@ -257,7 +295,7 @@ function parseIngredientLine(
   return {
     ingredient_name: ingredientName,
     quantity:        rawQty,
-    unit:            normalisedUnit as string,
+    unit:            normalisedUnit,
     preparation,
     display_order:   order,
   }
@@ -267,11 +305,11 @@ function looksLikeMethodStep(line: string): boolean {
   return (
     /^\d+[\.\):]/.test(line) ||
     /^step\s*\d+/i.test(line) ||
-    (line.length > 40 && /\b(heat|add|mix|stir|bake|cook|preheat|combine|place|pour|transfer|season|bring|reduce|whisk|fold|serve|slice|chop|dice|fry|roast|grill|simmer)\b/i.test(line))
+    (line.length > 40 && /\b(heat|add|mix|stir|bake|cook|preheat|combine|place|pour|transfer|season|bring|reduce|whisk|fold|serve|slice|chop|dice|fry|roast|grill|simmer|melt)\b/i.test(line))
   )
 }
 
-/** Keep first 2 sentences of a paragraph, max ~200 chars */
+/** Keep first 2 sentences of a paragraph, max ~240 chars */
 function condenseParagraph(text: string): string {
   const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text]
   const kept = sentences.slice(0, 2).join(' ').trim()

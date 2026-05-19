@@ -40,24 +40,32 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
     setStatus('Loading OCR engine…')
 
     try {
-      // Dynamically import Tesseract to avoid SSR issues
-      const Tesseract = (await import('tesseract.js')).default
+      // Dynamically import Tesseract to avoid SSR issues.
+      // Use explicit CDN paths for worker/core so it works in production.
+      const { createWorker } = await import('tesseract.js')
 
-      setStatus('Recognising text…')
-      setProgress(10)
+      setStatus('Loading OCR engine…')
+      setProgress(5)
 
-      const result = await Tesseract.recognize(file, 'eng', {
-        logger: (m) => {
+      const worker = await createWorker('eng', 1, {
+        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+        corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core-simd-lstm.wasm.js',
+        langPath:   'https://tessdata.projectnaptha.com/4.0.0',
+        logger: (m: any) => {
           if (m.status === 'recognizing text') {
             setProgress(10 + Math.round(m.progress * 70))
           }
         },
       })
 
+      setStatus('Recognising text…')
+      setProgress(10)
+
+      const { data: { text: rawText } } = await worker.recognize(file)
+      await worker.terminate()
+
       setProgress(85)
       setStatus('Parsing recipe…')
-
-      const rawText = result.data.text
       const parsed  = parseOcrText(rawText)
 
       setProgress(100)
