@@ -36,7 +36,7 @@ export function Header({ showAddButton = true }: HeaderProps) {
               strokeWidth={1.75}
             />
             <span className="font-serif text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-              Recipe Book
+              Recipe Drawer
             </span>
           </Link>
 

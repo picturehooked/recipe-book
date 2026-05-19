@@ -5,16 +5,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronLeft, Edit2, Clock, Users, ExternalLink,
+  ChevronLeft, Edit2, Users, ExternalLink,
   CheckCircle2, Circle, ChevronDown, ChevronUp, Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { FavouriteButton } from '@/components/ui/FavouriteButton'
-import {
-  formatTime, formatTotalTime, formatServings
-} from '@/lib/utils/formatters'
+import { formatServings } from '@/lib/utils/formatters'
 import { scaleQuantity, formatQuantity } from '@/lib/utils/conversions'
 import { useDeleteRecipe } from '@/hooks/useRecipes'
 import type { Recipe, RecipeIngredient } from '@/types'
@@ -196,29 +194,6 @@ export function RecipeView({ recipe }: RecipeViewProps) {
                     {servings === 1 ? 'serving' : 'servings'}
                   </span>
                 </div>
-              </div>
-            )}
-
-            {(recipe.prep_time_mins || recipe.cook_time_mins) && (
-              <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                <Clock className="h-4 w-4" strokeWidth={1.75} />
-                {recipe.prep_time_mins && (
-                  <span>Prep {formatTime(recipe.prep_time_mins)}</span>
-                )}
-                {recipe.prep_time_mins && recipe.cook_time_mins && (
-                  <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                )}
-                {recipe.cook_time_mins && (
-                  <span>Cook {formatTime(recipe.cook_time_mins)}</span>
-                )}
-                {recipe.prep_time_mins && recipe.cook_time_mins && (
-                  <>
-                    <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                    <span className="font-medium text-zinc-600 dark:text-zinc-300">
-                      Total {formatTotalTime(recipe.prep_time_mins, recipe.cook_time_mins)}
-                    </span>
-                  </>
-                )}
               </div>
             )}
 

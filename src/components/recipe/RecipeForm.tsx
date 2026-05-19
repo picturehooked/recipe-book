@@ -1,29 +1,30 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Image as ImageIcon, X } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Image as ImageIcon, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { IngredientInput } from '@/components/ui/IngredientInput'
 import { createClient } from '@/lib/supabase/client'
+import { useIngredients } from '@/hooks/useIngredients'
 import type { Recipe, Category, Tag, RecipeFormValues } from '@/types'
 
 const UNITS = [
-  { value: '',       label: '—' },
-  { value: 'g',     label: 'g' },
-  { value: 'kg',    label: 'kg' },
-  { value: 'ml',    label: 'ml' },
-  { value: 'l',     label: 'l' },
-  { value: 'tsp',   label: 'tsp' },
-  { value: 'tbsp',  label: 'tbsp' },
-  { value: 'cups',  label: 'cups' },
-  { value: 'number',label: '#' },
+  { value: '',        label: '—' },
+  { value: 'g',      label: 'g' },
+  { value: 'kg',     label: 'kg' },
+  { value: 'ml',     label: 'ml' },
+  { value: 'l',      label: 'l' },
+  { value: 'tsp',    label: 'tsp' },
+  { value: 'tbsp',   label: 'tbsp' },
+  { value: 'cups',   label: 'cups' },
+  { value: 'number', label: '#' },
 ]
 
 const schema = z.object({
@@ -31,8 +32,6 @@ const schema = z.object({
   category_id:    z.string().optional(),
   tag_ids:        z.array(z.string()).default([]),
   servings:       z.string().optional(),
-  prep_time_mins: z.string().optional(),
-  cook_time_mins: z.string().optional(),
   source:         z.string().optional(),
   notes:          z.string().optional(),
   hero_image_url: z.string().optional(),
@@ -60,20 +59,25 @@ interface RecipeFormProps {
 }
 
 export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProps) {
-  const router   = useRouter()
-  const supabase = createClient()
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+  const router      = useRouter()
+  const supabase    = createClient()
+  const { getOrCreate } = useIngredients()
+
+  const [saving, setSaving]             = useState(false)
+  const [error, setError]               = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(recipe?.hero_image_url ?? null)
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading]       = useState(false)
+
+  // Track which method step index to focus after appending
+  const [focusStepIdx, setFocusStepIdx] = useState<number | null>(null)
 
   const defaultValues: RecipeFormValues = {
     title:          recipe?.title          ?? prefill?.title          ?? '',
     category_id:    recipe?.category_id    ?? prefill?.category_id    ?? '',
     tag_ids:        recipe?.tags?.map((t) => t.id) ?? prefill?.tag_ids ?? [],
     servings:       recipe?.servings?.toString() ?? prefill?.servings ?? '',
-    prep_time_mins: recipe?.prep_time_mins?.toString() ?? prefill?.prep_time_mins ?? '',
-    cook_time_mins: recipe?.cook_time_mins?.toString() ?? prefill?.cook_time_mins ?? '',
+    prep_time_mins: '',
+    cook_time_mins: '',
     source:         recipe?.source         ?? prefill?.source         ?? '',
     notes:          recipe?.notes          ?? prefill?.notes          ?? '',
     hero_image_url: recipe?.hero_image_url ?? prefill?.hero_image_url ?? '',
@@ -119,14 +123,41 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
 
   const tagIds = watch('tag_ids')
 
+  // Focus the newly created method step after render
+  useEffect(() => {
+    if (focusStepIdx !== null) {
+      const el = document.querySelector(`[data-method-step="${focusStepIdx}"]`) as HTMLTextAreaElement | null
+      if (el) {
+        el.focus()
+        setFocusStepIdx(null)
+      }
+    }
+  }, [focusStepIdx, methodSteps.length])
+
+  function handleAddStep() {
+    if (methodSteps.length >= 10) return
+    appendStep('' as any)
+    setFocusStepIdx(methodSteps.length)
+  }
+
+  function handleStepKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>, idx: number) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if (methodSteps.length < 10) {
+        appendStep('' as any)
+        setFocusStepIdx(methodSteps.length)
+      }
+    }
+  }
+
   // ---- Image upload ------------------------------------------
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
     try {
-      const ext   = file.name.split('.').pop()
-      const path  = `recipes/${Date.now()}.${ext}`
+      const ext  = file.name.split('.').pop()
+      const path = `recipes/${Date.now()}.${ext}`
       const { data, error: upErr } = await supabase.storage
         .from('recipe-images')
         .upload(path, file, { upsert: true })
@@ -152,13 +183,25 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
     setError(null)
 
     try {
+      // Auto-add any new ingredients to the global ingredient database
+      const allIngredientNames = values.sections.flatMap((sec) =>
+        sec.ingredients
+          .map((i) => i.ingredient_name.trim())
+          .filter(Boolean)
+      )
+      const ingredientIdMap = new Map<string, string>()
+      await Promise.all(
+        allIngredientNames.map(async (name) => {
+          const ing = await getOrCreate(name)
+          if (ing) ingredientIdMap.set(name.toLowerCase(), ing.id)
+        })
+      )
+
       const recipePayload = {
         title:          values.title,
         category_id:    values.category_id || null,
         hero_image_url: values.hero_image_url || null,
         servings:       values.servings ? parseInt(values.servings) : null,
-        prep_time_mins: values.prep_time_mins ? parseInt(values.prep_time_mins) : null,
-        cook_time_mins: values.cook_time_mins ? parseInt(values.cook_time_mins) : null,
         source:         values.source || null,
         notes:          values.notes  || null,
       }
@@ -208,6 +251,7 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
             validIngredients.map((ing, ii) => ({
               recipe_id:       recipeId,
               section_id:      secData.id,
+              ingredient_id:   ingredientIdMap.get(ing.ingredient_name.trim().toLowerCase()) ?? null,
               ingredient_name: ing.ingredient_name.trim(),
               quantity:        ing.quantity ? parseFloat(ing.quantity) : null,
               unit:            ing.unit || null,
@@ -236,7 +280,7 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
       setError(err.message ?? 'Failed to save recipe')
       setSaving(false)
     }
-  }, [recipe, supabase, router])
+  }, [recipe, supabase, router, getOrCreate])
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -278,23 +322,6 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
             min="1"
             placeholder="4"
             {...register('servings')}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Prep time (min)"
-            type="number"
-            min="0"
-            placeholder="15"
-            {...register('prep_time_mins')}
-          />
-          <Input
-            label="Cook time (min)"
-            type="number"
-            min="0"
-            placeholder="45"
-            {...register('cook_time_mins')}
           />
         </div>
 
@@ -429,6 +456,8 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
                   rows={2}
                   placeholder={`Step ${idx + 1}…`}
                   className="resize-y"
+                  data-method-step={idx}
+                  onKeyDown={(e) => handleStepKeyDown(e as React.KeyboardEvent<HTMLTextAreaElement>, idx)}
                   {...register(`method_steps.${idx}` as any)}
                 />
               </div>
@@ -449,7 +478,7 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => appendStep('' as any)}
+              onClick={handleAddStep}
             >
               <Plus className="h-4 w-4" strokeWidth={2} />
               Add step
@@ -501,10 +530,38 @@ interface IngredientSectionProps {
 function IngredientSection({
   sectionIndex, control, register, totalSections, onRemoveSection,
 }: IngredientSectionProps) {
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, move } = useFieldArray({
     control,
     name: `sections.${sectionIndex}.ingredients`,
   })
+
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+  const dragSrcIdx = useRef<number | null>(null)
+
+  function handleDragStart(e: React.DragEvent, idx: number) {
+    dragSrcIdx.current = idx
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverIdx(idx)
+  }
+
+  function handleDrop(e: React.DragEvent, toIdx: number) {
+    e.preventDefault()
+    if (dragSrcIdx.current !== null && dragSrcIdx.current !== toIdx) {
+      move(dragSrcIdx.current, toIdx)
+    }
+    dragSrcIdx.current = null
+    setDragOverIdx(null)
+  }
+
+  function handleDragEnd() {
+    dragSrcIdx.current = null
+    setDragOverIdx(null)
+  }
 
   return (
     <div className="space-y-2">
@@ -536,7 +593,23 @@ function IngredientSection({
       {/* Ingredients */}
       <div className="space-y-1.5">
         {fields.map((field, ii) => (
-          <div key={field.id} className="flex gap-1.5 items-center">
+          <div
+            key={field.id}
+            draggable
+            onDragStart={(e) => handleDragStart(e, ii)}
+            onDragOver={(e) => handleDragOver(e, ii)}
+            onDrop={(e) => handleDrop(e, ii)}
+            onDragEnd={handleDragEnd}
+            className={cn(
+              'flex gap-1.5 items-center rounded-lg transition-colors',
+              dragOverIdx === ii && 'bg-amber-50 dark:bg-amber-900/10',
+            )}
+          >
+            {/* Drag handle */}
+            <div className="cursor-grab active:cursor-grabbing flex-shrink-0 p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-400 touch-none">
+              <GripVertical className="h-4 w-4" strokeWidth={1.75} />
+            </div>
+
             {/* Quantity */}
             <input
               type="text"

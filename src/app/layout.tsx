@@ -4,9 +4,19 @@ import { Header } from '@/components/layout/Header'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title:       { default: 'Recipe Book', template: '%s | Recipe Book' },
+  title:       { default: 'Recipe Drawer', template: '%s | Recipe Drawer' },
   description: 'A personal recipe repository and kitchen reference',
   manifest:    '/manifest.json',
+  icons: {
+    icon:     [
+      { url: '/favicon.ico',  sizes: 'any' },
+      { url: '/icon-32.png',  sizes: '32x32', type: 'image/png' },
+      { url: '/icon-16.png',  sizes: '16x16', type: 'image/png' },
+    ],
+    apple:    [
+      { url: '/icon-180.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 }
 
 export const viewport: Viewport = {

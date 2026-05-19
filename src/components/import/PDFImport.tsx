@@ -38,10 +38,13 @@ export function PDFImport({ onResult }: PDFImportProps) {
     try {
       // Dynamic import to avoid SSR
       const pdfjs = await import('pdfjs-dist')
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+      // pdfjs-dist v4 uses .mjs worker
+      pdfjs.GlobalWorkerOptions.workerSrc =
+        `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
       const arrayBuffer = await file.arrayBuffer()
-      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) })
+      const pdf = await loadingTask.promise
       setProgress(20)
 
       let fullText = ''
@@ -52,7 +55,9 @@ export function PDFImport({ onResult }: PDFImportProps) {
         setStatus(`Reading page ${i} of ${pageCount}…`)
         const page    = await pdf.getPage(i)
         const content = await page.getTextContent()
+        // Filter out TextMarkedContent items (no .str property) present in pdfjs v4
         const pageText = content.items
+          .filter((item: any) => typeof item.str === 'string')
           .map((item: any) => item.str)
           .join(' ')
         fullText += pageText + '\n'
