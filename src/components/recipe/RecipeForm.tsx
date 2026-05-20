@@ -56,9 +56,10 @@ interface RecipeFormProps {
   categories: Category[]
   tags:       Tag[]
   prefill?:   Partial<RecipeFormValues>
+  isImport?:  boolean   // when true, skip adding new entries to the ingredients database
 }
 
-export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProps) {
+export function RecipeForm({ recipe, categories, tags, prefill, isImport = false }: RecipeFormProps) {
   const router      = useRouter()
   const supabase    = createClient()
   const { getOrCreate } = useIngredients()
@@ -183,19 +184,21 @@ export function RecipeForm({ recipe, categories, tags, prefill }: RecipeFormProp
     setError(null)
 
     try {
-      // Auto-add any new ingredients to the global ingredient database
+      // Add new ingredients to the global database (manual entry only — skip on imports)
       const allIngredientNames = values.sections.flatMap((sec) =>
         sec.ingredients
           .map((i) => i.ingredient_name.trim())
           .filter(Boolean)
       )
       const ingredientIdMap = new Map<string, string>()
-      await Promise.all(
-        allIngredientNames.map(async (name) => {
-          const ing = await getOrCreate(name)
-          if (ing) ingredientIdMap.set(name.toLowerCase(), ing.id)
-        })
-      )
+      if (!isImport) {
+        await Promise.all(
+          allIngredientNames.map(async (name) => {
+            const ing = await getOrCreate(name)
+            if (ing) ingredientIdMap.set(name.toLowerCase(), ing.id)
+          })
+        )
+      }
 
       const recipePayload = {
         title:          values.title,

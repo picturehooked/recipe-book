@@ -87,15 +87,19 @@ function stripBullet(line: string): string {
 // OCR sometimes returns Unicode fractions or splits them oddly
 function normaliseFractions(line: string): string {
   return line
+    // Mixed numbers FIRST: "1 1/2" → "1.5", "2 3/4" → "2.75"
+    .replace(/(\d+)\s+(\d+)\s*\/\s*(\d+)/g, (_, whole, num, denom) =>
+      (Number(whole) + Number(num) / Number(denom)).toFixed(3).replace(/\.?0+$/, ''))
+    // Unicode fractions
     .replace(/½/g, '0.5')
     .replace(/¼/g, '0.25')
     .replace(/¾/g, '0.75')
     .replace(/⅓/g, '0.33')
     .replace(/⅔/g, '0.67')
     .replace(/⅛/g, '0.125')
-    .replace(/1\s*\/\s*2/g, '0.5')
-    .replace(/1\s*\/\s*4/g, '0.25')
-    .replace(/3\s*\/\s*4/g, '0.75')
+    // Remaining simple fractions: "3/4" → "0.75"
+    .replace(/(\d+)\s*\/\s*(\d+)/g, (_, num, denom) =>
+      (Number(num) / Number(denom)).toFixed(3).replace(/\.?0+$/, ''))
 }
 
 export function parseOcrText(rawText: string): ImportedRecipe {
@@ -134,9 +138,18 @@ export function parseOcrText(rawText: string): ImportedRecipe {
     if (line.length < 2) continue
 
     // ---- Title detection (first substantial non-marker line) ---
-    if (!title && line.length > 3 && line.length < 120 && phase === 'scanning') {
-      // Don't use the line as title if it looks like an ingredient marker
-      if (!INGREDIENT_MARKERS.some(p => p.test(line)) && !METHOD_MARKERS.some(p => p.test(line))) {
+    if (!title && line.length > 5 && line.length < 120 && phase === 'scanning') {
+      const isServingsLine =
+        /^(serves?|servings?|yield|portions?)/i.test(line) ||
+        /^\d+\s*(servings?|portions?|people|guests?)/i.test(line) ||
+        /^serving size/i.test(line)
+      const startsWithNumber = /^\d/.test(line)
+      if (
+        !isServingsLine &&
+        !startsWithNumber &&
+        !INGREDIENT_MARKERS.some(p => p.test(line)) &&
+        !METHOD_MARKERS.some(p => p.test(line))
+      ) {
         title = line
         continue
       }
@@ -292,10 +305,24 @@ function parseIngredientLine(
 
   const normalisedUnit = UNIT_ALIASES[rawUnit] ?? rawUnit
 
+  // Convert imperial weight units to grams
+  let finalQty  = rawQty
+  let finalUnit = normalisedUnit
+  if ((normalisedUnit === 'lb' || normalisedUnit === 'oz') && rawQty) {
+    const parsed = parseFloat(rawQty)
+    if (!isNaN(parsed)) {
+      const grams = normalisedUnit === 'lb'
+        ? Math.round(parsed * 453.592)
+        : Math.round(parsed * 28.35)
+      finalQty  = grams.toString()
+      finalUnit = 'g'
+    }
+  }
+
   return {
     ingredient_name: ingredientName,
-    quantity:        rawQty,
-    unit:            normalisedUnit,
+    quantity:        finalQty,
+    unit:            finalUnit,
     preparation,
     display_order:   order,
   }

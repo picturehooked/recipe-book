@@ -110,8 +110,9 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
                 Handwritten recipes, magazine pages, screenshots — JPG, PNG, HEIC
               </p>
             </div>
-            {/* Camera button for mobile */}
-            <div className="flex gap-2 mt-1">
+            {/* Camera / library buttons — stopPropagation prevents the dropzone's own
+                click handler from firing a second file picker on top of these */}
+            <div className="flex gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
               <label className={cn(
                 'cursor-pointer flex items-center gap-1.5 rounded-xl px-3.5 py-2',
                 'text-sm font-medium',
