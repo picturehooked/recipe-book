@@ -41,7 +41,7 @@ export default function IngredientsPage() {
       grouped.get(row.ingredient_id)!.add(row.recipe_id)
     }
     const counts = new Map<string, number>()
-    for (const [id, recipes] of grouped) counts.set(id, recipes.size)
+    grouped.forEach((recipes, id) => counts.set(id, recipes.size))
     setRecipeCounts(counts)
 
     setLoading(false)
