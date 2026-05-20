@@ -10,22 +10,40 @@ import type { Ingredient } from '@/types'
 export default function IngredientsPage() {
   const supabase = createClient()
 
-  const [ingredients, setIngredients] = useState<Ingredient[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [query, setQuery]             = useState('')
-  const [editingId, setEditingId]     = useState<string | null>(null)
-  const [editingName, setEditingName] = useState('')
-  const [saving, setSaving]           = useState(false)
-  const [deletingId, setDeletingId]   = useState<string | null>(null)
-  const [error, setError]             = useState<string | null>(null)
+  const [ingredients, setIngredients]   = useState<Ingredient[]>([])
+  const [recipeCounts, setRecipeCounts] = useState<Map<string, number>>(new Map())
+  const [loading, setLoading]           = useState(true)
+  const [query, setQuery]               = useState('')
+  const [editingId, setEditingId]       = useState<string | null>(null)
+  const [editingName, setEditingName]   = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [deletingId, setDeletingId]     = useState<string | null>(null)
+  const [error, setError]               = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('ingredients')
-      .select('*, ingredient_category:ingredient_categories(id, name, sort_order)')
-      .order('name')
+    const [{ data }, { data: usageRows }] = await Promise.all([
+      supabase
+        .from('ingredients')
+        .select('*, ingredient_category:ingredient_categories(id, name, sort_order)')
+        .order('name'),
+      supabase
+        .from('recipe_ingredients')
+        .select('ingredient_id, recipe_id'),
+    ])
     setIngredients(data ?? [])
+
+    // Count distinct recipes per ingredient
+    const grouped = new Map<string, Set<string>>()
+    for (const row of (usageRows ?? [])) {
+      if (!row.ingredient_id) continue
+      if (!grouped.has(row.ingredient_id)) grouped.set(row.ingredient_id, new Set())
+      grouped.get(row.ingredient_id)!.add(row.recipe_id)
+    }
+    const counts = new Map<string, number>()
+    for (const [id, recipes] of grouped) counts.set(id, recipes.size)
+    setRecipeCounts(counts)
+
     setLoading(false)
   }, [supabase])
 
@@ -210,6 +228,11 @@ export default function IngredientsPage() {
                         <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-200">
                           {ing.name}
                         </span>
+                        {(recipeCounts.get(ing.id) ?? 0) > 0 && (
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500 mr-1">
+                            {recipeCounts.get(ing.id)} {recipeCounts.get(ing.id) === 1 ? 'recipe' : 'recipes'}
+                          </span>
+                        )}
                         <button
                           onClick={() => startEdit(ing)}
                           className="p-1.5 text-zinc-300 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"

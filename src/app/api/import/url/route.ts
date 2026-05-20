@@ -30,9 +30,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
     const res = await fetch(parsedUrl.toString(), {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; RecipeBook/1.0)',
-        'Accept':     'text/html,application/xhtml+xml',
+        'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-GB,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control':   'no-cache',
+        'Pragma':          'no-cache',
+        'Sec-Fetch-Dest':  'document',
+        'Sec-Fetch-Mode':  'navigate',
+        'Sec-Fetch-Site':  'none',
       },
     })
     clearTimeout(timer)
@@ -64,10 +70,32 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
     for (const block of jsonLdMatch) {
       try {
         const json = JSON.parse(block.replace(/<script[^>]*>/, '').replace(/<\/script>/, '').trim())
-        const schemas = Array.isArray(json) ? json : [json]
-        const recipe = schemas.find(
-          (s: any) => s['@type'] === 'Recipe' || (Array.isArray(s['@type']) && s['@type'].includes('Recipe'))
-        )
+
+        // Flatten: handle top-level array, @graph wrapper, or plain object
+        let candidates: any[] = []
+        if (Array.isArray(json)) {
+          candidates = json
+        } else if (json['@graph'] && Array.isArray(json['@graph'])) {
+          candidates = json['@graph']
+        } else {
+          candidates = [json]
+        }
+
+        // Also expand any nested @graph arrays inside individual candidates
+        const flat: any[] = []
+        for (const c of candidates) {
+          if (c['@graph'] && Array.isArray(c['@graph'])) {
+            flat.push(...c['@graph'])
+          } else {
+            flat.push(c)
+          }
+        }
+
+        const isRecipe = (s: any) =>
+          s['@type'] === 'Recipe' ||
+          (Array.isArray(s['@type']) && s['@type'].includes('Recipe'))
+
+        const recipe = flat.find(isRecipe)
         if (recipe) {
           return NextResponse.json({ success: true, recipe: extractFromJsonLd(recipe) })
         }

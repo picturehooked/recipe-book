@@ -58,8 +58,8 @@ export function PDFImport({ onResult }: PDFImportProps) {
         // Filter out TextMarkedContent items (no .str property) present in pdfjs v4
         const pageText = content.items
           .filter((item: any) => typeof item.str === 'string')
-          .map((item: any) => item.str)
-          .join(' ')
+          .map((item: any) => item.str + (item.hasEOL ? '\n' : ''))
+          .join('')
         fullText += pageText + '\n'
         setProgress(20 + Math.round((i / pageCount) * 40))
       }

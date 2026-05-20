@@ -6,12 +6,12 @@
 -- RECIPE CATEGORIES
 -- ============================================================
 insert into categories (name, slug, sort_order) values
-  ('Chicken',   'chicken',   1),
-  ('Beef',      'beef',      2),
-  ('Lamb',      'lamb',      3),
-  ('Fish',      'fish',      4),
-  ('Starters',  'starters',  5),
-  ('Pasta',     'pasta',     6),
+  ('Starters',  'starters',  1),
+  ('Pasta',     'pasta',     2),
+  ('Chicken',   'chicken',   3),
+  ('Beef',      'beef',      4),
+  ('Lamb',      'lamb',      5),
+  ('Fish',      'fish',      6),
   ('Desserts',  'desserts',  7),
   ('Bread',     'bread',     8),
   ('Biscuits',  'biscuits',  9)
