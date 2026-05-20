@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import { Sun, Moon, BookOpen, Plus, Download } from 'lucide-react'
+import { Sun, Moon, BookOpen, Plus, Download, ListOrdered } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 interface HeaderProps {
@@ -42,6 +42,22 @@ export function Header({ showAddButton = true }: HeaderProps) {
 
           {/* Right controls */}
           <div className="flex items-center gap-1">
+            {/* Ingredients */}
+            <Link
+              href="/ingredients"
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5',
+                'text-sm font-medium',
+                'text-zinc-600 dark:text-zinc-400',
+                'hover:text-zinc-900 dark:hover:text-zinc-100',
+                'hover:bg-parchment-100 dark:hover:bg-slate-800',
+                'transition-colors',
+              )}
+            >
+              <ListOrdered className="h-4 w-4" strokeWidth={1.75} />
+              <span className="hidden sm:inline">Ingredients</span>
+            </Link>
+
             {/* Import */}
             <Link
               href="/import"
