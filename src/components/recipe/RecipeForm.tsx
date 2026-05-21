@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, GripVertical, Image as ImageIcon, X } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Image as ImageIcon, X, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
@@ -118,7 +118,7 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
     control, name: 'sections',
   })
 
-  const { fields: methodSteps, append: appendStep, remove: removeStep } = useFieldArray({
+  const { fields: methodSteps, append: appendStep, remove: removeStep, insert: insertStep, move: moveStep } = useFieldArray({
     control, name: 'method_steps' as any,
   })
 
@@ -444,36 +444,75 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
           </span>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-1">
           {methodSteps.map((step, idx) => (
-            <div key={step.id} className="flex gap-2 items-start">
-              <div className={cn(
-                'flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center mt-2.5',
-                'text-xs font-bold',
-                'bg-parchment-100 dark:bg-slate-700 text-zinc-500 dark:text-zinc-400',
-              )}>
-                {idx + 1}
+            <Fragment key={step.id}>
+              <div className="flex gap-2 items-start">
+                <div className={cn(
+                  'flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center mt-2.5',
+                  'text-xs font-bold',
+                  'bg-parchment-100 dark:bg-slate-700 text-zinc-500 dark:text-zinc-400',
+                )}>
+                  {idx + 1}
+                </div>
+                <div className="flex-1">
+                  <Textarea
+                    rows={2}
+                    placeholder={`Step ${idx + 1}…`}
+                    className="resize-y"
+                    data-method-step={idx}
+                    onKeyDown={(e) => handleStepKeyDown(e as React.KeyboardEvent<HTMLTextAreaElement>, idx)}
+                    {...register(`method_steps.${idx}` as any)}
+                  />
+                </div>
+                <div className="flex flex-col mt-2.5">
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => moveStep(idx, idx - 1)}
+                      className="p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+                      title="Move step up"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
+                  )}
+                  {methodSteps.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeStep(idx)}
+                      className="p-1.5 text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <Textarea
-                  rows={2}
-                  placeholder={`Step ${idx + 1}…`}
-                  className="resize-y"
-                  data-method-step={idx}
-                  onKeyDown={(e) => handleStepKeyDown(e as React.KeyboardEvent<HTMLTextAreaElement>, idx)}
-                  {...register(`method_steps.${idx}` as any)}
-                />
-              </div>
-              {methodSteps.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeStep(idx)}
-                  className="mt-2.5 p-1.5 text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                </button>
+
+              {/* Insert step between — shown between consecutive steps */}
+              {idx < methodSteps.length - 1 && methodSteps.length < 10 && (
+                <div className="flex items-center gap-2 py-0.5 pl-8">
+                  <div className="flex-1 h-px bg-parchment-100 dark:bg-slate-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      insertStep(idx + 1, '' as any)
+                      setFocusStepIdx(idx + 1)
+                    }}
+                    className={cn(
+                      'flex items-center gap-1 rounded px-1.5 py-0.5',
+                      'text-xs text-zinc-300 dark:text-zinc-600',
+                      'hover:text-amber-600 dark:hover:text-amber-400',
+                      'transition-colors',
+                    )}
+                    title="Insert step here"
+                  >
+                    <Plus className="h-3 w-3" strokeWidth={2.5} />
+                    insert
+                  </button>
+                  <div className="flex-1 h-px bg-parchment-100 dark:bg-slate-800" />
+                </div>
               )}
-            </div>
+            </Fragment>
           ))}
 
           {methodSteps.length < 10 && (
@@ -596,15 +635,15 @@ function IngredientSection({
       {/* Ingredients */}
       <div className="space-y-1.5">
         {fields.map((field, ii) => (
-          <div key={field.id} className="overflow-x-auto">
           <div
+            key={field.id}
             draggable
             onDragStart={(e) => handleDragStart(e, ii)}
             onDragOver={(e) => handleDragOver(e, ii)}
             onDrop={(e) => handleDrop(e, ii)}
             onDragEnd={handleDragEnd}
             className={cn(
-              'flex gap-1.5 items-center rounded-lg transition-colors min-w-max sm:min-w-0',
+              'flex gap-1.5 items-center rounded-lg transition-colors',
               dragOverIdx === ii && 'bg-amber-50 dark:bg-amber-900/10',
             )}
           >
@@ -681,7 +720,6 @@ function IngredientSection({
             >
               <X className="h-4 w-4" strokeWidth={1.75} />
             </button>
-          </div>
           </div>
         ))}
 

@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, Edit2, Users, ExternalLink,
-  CheckCircle2, Circle, ChevronDown, ChevronUp, Trash2
+  CheckCircle2, Circle, Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { Badge } from '@/components/ui/Badge'
@@ -40,9 +40,6 @@ export function RecipeView({ recipe }: RecipeViewProps) {
 
   // Mobile tab
   const [activeTab, setActiveTab] = useState<ActiveTab>('ingredients')
-
-  // Show/hide image on mobile (collapsed by default to save space)
-  const [imageExpanded, setImageExpanded] = useState(false)
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -165,105 +162,89 @@ export function RecipeView({ recipe }: RecipeViewProps) {
             ))}
           </div>
 
-          {/* Title */}
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight">
-            {recipe.title}
-          </h1>
+          {/* Title row — image floated right on sm+ */}
+          <div className="flex items-start gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="font-serif text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight">
+                {recipe.title}
+              </h1>
 
-          {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-4 mt-3">
-            {/* Servings scaler */}
-            {recipe.servings && (
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setServings((s) => Math.max(1, s - 1))}
-                    className="h-6 w-6 rounded-full border border-parchment-200 dark:border-slate-700 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-parchment-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
-                    aria-label="Decrease servings"
-                  >−</button>
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 min-w-[2rem] text-center">
-                    {servings}
-                  </span>
-                  <button
-                    onClick={() => setServings((s) => s + 1)}
-                    className="h-6 w-6 rounded-full border border-parchment-200 dark:border-slate-700 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-parchment-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
-                    aria-label="Increase servings"
-                  >+</button>
-                  <span className="text-sm text-zinc-400">
-                    {servings === 1 ? 'serving' : 'servings'}
-                  </span>
+              {/* Meta row */}
+              <div className="flex flex-wrap items-center gap-4 mt-3">
+                {recipe.servings && (
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setServings((s) => Math.max(1, s - 1))}
+                        className="h-6 w-6 rounded-full border border-parchment-200 dark:border-slate-700 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-parchment-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
+                        aria-label="Decrease servings"
+                      >−</button>
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 min-w-[2rem] text-center">
+                        {servings}
+                      </span>
+                      <button
+                        onClick={() => setServings((s) => s + 1)}
+                        className="h-6 w-6 rounded-full border border-parchment-200 dark:border-slate-700 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-parchment-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
+                        aria-label="Increase servings"
+                      >+</button>
+                      <span className="text-sm text-zinc-400">
+                        {servings === 1 ? 'serving' : 'servings'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {recipe.source && (
+                  <a
+                    href={recipe.source.startsWith('http') ? recipe.source : undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-zinc-400 dark:text-zinc-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    <span className="truncate max-w-[200px]">
+                      {recipe.source.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                    </span>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Hero image — desktop: top-right alongside title */}
+            {recipe.hero_image_url && (
+              <div className="hidden sm:block flex-shrink-0 w-36 rounded-2xl overflow-hidden">
+                <div className="relative aspect-square">
+                  <Image
+                    src={recipe.hero_image_url}
+                    alt={recipe.title}
+                    fill
+                    className="object-cover"
+                    sizes="144px"
+                  />
                 </div>
               </div>
             )}
-
-            {recipe.source && (
-              <a
-                href={recipe.source.startsWith('http') ? recipe.source : undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-zinc-400 dark:text-zinc-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-              >
-                <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
-                <span className="truncate max-w-[200px]">
-                  {recipe.source.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
-                </span>
-              </a>
-            )}
           </div>
-        </div>
 
-        {/* ---- Hero image (mobile: collapsible, desktop: sidebar) -- */}
-        {recipe.hero_image_url && (
-          <div className="lg:hidden mb-4">
-            <button
-              onClick={() => setImageExpanded((v) => !v)}
-              className="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500 mb-1"
-            >
-              {imageExpanded
-                ? <><ChevronUp className="h-3.5 w-3.5" />Hide photo</>
-                : <><ChevronDown className="h-3.5 w-3.5" />Show photo</>
-              }
-            </button>
-            {imageExpanded && (
-              <div className="relative rounded-2xl overflow-hidden aspect-[16/9]">
-                <Image
-                  src={recipe.hero_image_url}
-                  alt={recipe.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ---- Two-column layout (desktop) / Tabs (mobile) ---- */}
-        <div className="flex flex-col lg:flex-row gap-6">
-
-          {/* Desktop sidebar: hero image */}
+          {/* Hero image — mobile: always visible, below title */}
           {recipe.hero_image_url && (
-            <div className="hidden lg:block w-56 flex-shrink-0 self-start sticky top-28">
-              <div className="relative rounded-2xl overflow-hidden aspect-square">
-                <Image
-                  src={recipe.hero_image_url}
-                  alt={recipe.title}
-                  fill
-                  className="object-cover"
-                  sizes="224px"
-                />
-              </div>
-              {recipe.notes && (
-                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400 italic leading-relaxed">
-                  {recipe.notes}
-                </p>
-              )}
+            <div className="sm:hidden mt-4 rounded-2xl overflow-hidden aspect-[16/9] relative">
+              <Image
+                src={recipe.hero_image_url}
+                alt={recipe.title}
+                fill
+                className="object-cover"
+                sizes="100vw"
+              />
             </div>
           )}
+        </div>
 
+        {/* ---- Content: tabs (mobile) / side-by-side panels (desktop) ---- */}
+        <div>
           {/* Main content */}
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0">
 
             {/* Mobile tabs */}
             <div className="lg:hidden flex rounded-xl overflow-hidden border border-parchment-200 dark:border-slate-700 mb-4">
@@ -303,7 +284,7 @@ export function RecipeView({ recipe }: RecipeViewProps) {
                 completedSteps={completedSteps}
                 progressPct={progressPct}
                 onToggleStep={toggleStep}
-                notes={recipe.hero_image_url ? undefined : recipe.notes}
+                notes={recipe.notes}
               />
             </div>
 
@@ -335,6 +316,7 @@ export function RecipeView({ recipe }: RecipeViewProps) {
     </div>
   )
 }
+
 
 // ---- Ingredient Panel ----------------------------------------
 

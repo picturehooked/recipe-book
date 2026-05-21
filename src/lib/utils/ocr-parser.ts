@@ -367,7 +367,7 @@ function parseIngredientLine(
     const simpleMatch = line.match(/^([\d\.]+)\s+(.+)/)
     if (simpleMatch) {
       return {
-        ingredient_name: simpleMatch[2].trim(),
+        ingredient_name: capitalise(simpleMatch[2].trim()),
         quantity:        simpleMatch[1],
         unit:            'number',
         preparation:     '',
@@ -377,7 +377,7 @@ function parseIngredientLine(
     // Plain ingredient, no quantity — accept if reasonably short
     if (line.split(' ').length <= 8 && !/[.!?]$/.test(line)) {
       return {
-        ingredient_name: line,
+        ingredient_name: capitalise(line),
         quantity:        '',
         unit:            '',
         preparation:     '',
@@ -423,12 +423,16 @@ function parseIngredientLine(
   }
 
   return {
-    ingredient_name: ingredientName,
+    ingredient_name: capitalise(ingredientName),
     quantity:        finalQty,
     unit:            finalUnit,
     preparation,
     display_order:   order,
   }
+}
+
+function capitalise(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 }
 
 function looksLikeMethodStep(line: string): boolean {
