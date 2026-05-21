@@ -57,6 +57,9 @@ const NOISE_PATTERNS = [
   /^(comments?|leave a comment|reply|responses?)/i,
   /^(rating|stars?|reviews?)/i,
   /^(pin it|save recipe|print recipe|jump to recipe)/i,
+  // Source attributions and bare URLs that OCR picks up from recipe printouts
+  /^source:/i,
+  /^(www\.|https?:\/\/)/i,
 ]
 
 // Ingredient line: optional quantity + optional unit + ingredient text

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Camera, Upload, Loader2, Image as ImageIcon, X } from 'lucide-react'
+import { Camera, Upload, Loader2, Image as ImageIcon, X, RotateCcw, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { parseOcrText } from '@/lib/utils/ocr-parser'
@@ -12,18 +12,62 @@ interface PhotoImportProps {
   onResult: (result: ImportResult) => void
 }
 
+// Canvas-rotate an image file by the given degrees (must be a multiple of 90).
+// Returns a JPEG Blob with corrected dimensions ready for Tesseract.
+async function applyCanvasRotation(file: File, degrees: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const ctx    = canvas.getContext('2d')
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        reject(new Error('Canvas 2D context not available'))
+        return
+      }
+      const rad = (degrees * Math.PI) / 180
+      // Swap dimensions for 90° / 270° so the canvas fits the rotated image
+      if (degrees === 90 || degrees === 270) {
+        canvas.width  = img.naturalHeight
+        canvas.height = img.naturalWidth
+      } else {
+        canvas.width  = img.naturalWidth
+        canvas.height = img.naturalHeight
+      }
+      ctx.translate(canvas.width / 2, canvas.height / 2)
+      ctx.rotate(rad)
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error('Canvas toBlob failed')),
+        'image/jpeg',
+        0.92,
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image failed to load')) }
+    img.src = url
+  })
+}
+
 export function PhotoImport({ onResult }: PhotoImportProps) {
   const [file, setFile]         = useState<File | null>(null)
   const [preview, setPreview]   = useState<string | null>(null)
+  const [rotation, setRotation] = useState(0)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [status, setStatus]     = useState<string>('')
 
+  function setNewFile(f: File) {
+    setFile(f)
+    setPreview(URL.createObjectURL(f))
+    setRotation(0)
+  }
+
   const onDrop = useCallback((accepted: File[]) => {
     const f = accepted[0]
     if (!f) return
-    setFile(f)
-    setPreview(URL.createObjectURL(f))
+    setNewFile(f)
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -41,14 +85,18 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
 
     try {
       // Dynamically import Tesseract to avoid SSR issues.
-      // Use explicit CDN paths for worker/core so it works in production.
       // tesseract.js is a CJS module — use named import, not .default
       const { recognize } = await import('tesseract.js')
+
+      // Canvas-rotate before OCR when the user has corrected orientation
+      const imageSource = rotation !== 0
+        ? await applyCanvasRotation(file, rotation)
+        : file
 
       setStatus('Recognising text…')
       setProgress(10)
 
-      const { data: { text: rawText } } = await recognize(file, 'eng', {
+      const { data: { text: rawText } } = await recognize(imageSource, 'eng', {
         logger: (m: any) => {
           if (m.status === 'recognizing text') {
             setProgress(10 + Math.round(m.progress * 70))
@@ -67,7 +115,7 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
         success: true,
         recipe:  parsed,
         warning: rawText.length < 100
-          ? 'Low text extracted — the photo may be unclear. Please review carefully.'
+          ? 'Very little text was extracted — the photo may be sideways or unclear. Use the rotate buttons to correct orientation and try again.'
           : undefined,
       })
     } catch (err: any) {
@@ -80,6 +128,7 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
   function clearFile() {
     setFile(null)
     setPreview(null)
+    setRotation(0)
     setProgress(0)
     setStatus('')
   }
@@ -129,7 +178,7 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0]
-                    if (f) { setFile(f); setPreview(URL.createObjectURL(f)) }
+                    if (f) setNewFile(f)
                   }}
                 />
               </label>
@@ -148,7 +197,7 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0]
-                    if (f) { setFile(f); setPreview(URL.createObjectURL(f)) }
+                    if (f) setNewFile(f)
                   }}
                 />
               </label>
@@ -158,18 +207,58 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
       ) : (
         <div className="space-y-3">
           {/* Preview */}
-          <div className="relative rounded-xl overflow-hidden">
-            <img
-              src={preview!}
-              alt="Recipe to import"
-              className="w-full max-h-64 object-contain bg-parchment-50 dark:bg-slate-800"
-            />
+          <div className="relative rounded-xl overflow-hidden bg-parchment-50 dark:bg-slate-800">
+            <div className="flex items-center justify-center min-h-48 p-2">
+              <img
+                src={preview!}
+                alt="Recipe to import"
+                className="max-w-full max-h-64 object-contain transition-transform duration-200"
+                style={{ transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined }}
+              />
+            </div>
             <button
               onClick={clearFile}
               className="absolute top-2 right-2 rounded-full bg-black/60 p-1.5 text-white"
             >
               <X className="h-4 w-4" strokeWidth={2} />
             </button>
+          </div>
+
+          {/* Rotation controls */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Text sideways? Rotate before extracting.
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+                disabled={processing}
+                className={cn(
+                  'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium',
+                  'bg-parchment-100 dark:bg-slate-800 border border-parchment-200 dark:border-slate-700',
+                  'text-zinc-600 dark:text-zinc-300 hover:border-amber-300 dark:hover:border-amber-700',
+                  'disabled:opacity-40 transition-colors',
+                )}
+                title="Rotate counter-clockwise 90°"
+              >
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
+                CCW
+              </button>
+              <button
+                onClick={() => setRotation(r => (r + 90) % 360)}
+                disabled={processing}
+                className={cn(
+                  'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium',
+                  'bg-parchment-100 dark:bg-slate-800 border border-parchment-200 dark:border-slate-700',
+                  'text-zinc-600 dark:text-zinc-300 hover:border-amber-300 dark:hover:border-amber-700',
+                  'disabled:opacity-40 transition-colors',
+                )}
+                title="Rotate clockwise 90°"
+              >
+                <RotateCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+                CW
+              </button>
+            </div>
           </div>
 
           {/* Progress */}
