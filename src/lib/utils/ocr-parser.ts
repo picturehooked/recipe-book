@@ -141,15 +141,13 @@ export function parseOcrText(rawText: string): ImportedRecipe {
     if (line.length < 2) continue
 
     // ---- Title detection (first substantial non-marker line) ---
-    if (!title && line.length > 5 && line.length < 120 && phase === 'scanning') {
+    if (!title && line.length > 3 && line.length < 120 && phase === 'scanning') {
       const isServingsLine =
         /^(serves?|servings?|yield|portions?)/i.test(line) ||
         /^\d+\s*(servings?|portions?|people|guests?)/i.test(line) ||
         /^serving size/i.test(line)
-      const startsWithNumber = /^\d/.test(line)
       if (
         !isServingsLine &&
-        !startsWithNumber &&
         !INGREDIENT_MARKERS.some(p => p.test(line)) &&
         !METHOD_MARKERS.some(p => p.test(line))
       ) {
@@ -238,6 +236,30 @@ export function parseOcrText(rawText: string): ImportedRecipe {
 
   // Flush remaining section
   pushCurrentSection()
+
+  // ---- Title recovery --------------------------------------------------
+  // OCR engines (particularly phone scan modes) don't always output lines
+  // in strict top-to-bottom order — the title may appear after the
+  // Ingredients header in the raw stream, by which point the scanning phase
+  // has already closed. If we have no title yet, do a second pass over the
+  // first 15 raw lines and take the first clean candidate.
+  if (!title) {
+    const rawLines = rawText
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => l.length > 2)
+    for (const raw of rawLines.slice(0, 15)) {
+      const candidate = normaliseFractions(stripBullet(raw))
+      if (candidate.length < 3 || candidate.length > 120) continue
+      if (NOISE_PATTERNS.some(p => p.test(candidate)))     continue
+      if (INGREDIENT_MARKERS.some(p => p.test(candidate))) continue
+      if (METHOD_MARKERS.some(p => p.test(candidate)))     continue
+      if (/^(serves?|servings?|yield|portions?)/i.test(candidate)) continue
+      if (/^\d+\s*(servings?|portions?|people|guests?)/i.test(candidate)) continue
+      title = candidate
+      break
+    }
+  }
 
   // Ensure at least one empty section so the form renders
   if (sections.length === 0) {
