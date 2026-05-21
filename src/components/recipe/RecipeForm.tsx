@@ -596,15 +596,15 @@ function IngredientSection({
       {/* Ingredients */}
       <div className="space-y-1.5">
         {fields.map((field, ii) => (
+          <div key={field.id} className="overflow-x-auto">
           <div
-            key={field.id}
             draggable
             onDragStart={(e) => handleDragStart(e, ii)}
             onDragOver={(e) => handleDragOver(e, ii)}
             onDrop={(e) => handleDrop(e, ii)}
             onDragEnd={handleDragEnd}
             className={cn(
-              'flex gap-1.5 items-center rounded-lg transition-colors',
+              'flex gap-1.5 items-center rounded-lg transition-colors min-w-max sm:min-w-0',
               dragOverIdx === ii && 'bg-amber-50 dark:bg-amber-900/10',
             )}
           >
@@ -631,7 +631,7 @@ function IngredientSection({
             {/* Unit */}
             <select
               className={cn(
-                'w-16 sm:w-20 rounded-lg px-1 sm:px-1.5 py-2 text-sm',
+                'w-12 sm:w-20 rounded-lg px-0.5 sm:px-1.5 py-2 text-sm',
                 'text-zinc-900 dark:text-zinc-100',
                 'bg-white dark:bg-slate-850',
                 'border border-parchment-200 dark:border-slate-700',
@@ -681,6 +681,7 @@ function IngredientSection({
             >
               <X className="h-4 w-4" strokeWidth={1.75} />
             </button>
+          </div>
           </div>
         ))}
 

@@ -218,13 +218,13 @@ export function PhotoImport({ onResult }: PhotoImportProps) {
   if (cameraOpen) {
     return (
       <div className="space-y-3">
-        <div className="relative rounded-xl overflow-hidden bg-black">
+        <div className="relative rounded-xl overflow-hidden bg-black aspect-[100/141]">
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted
-            className="w-full max-h-80 object-contain"
+            className="absolute inset-0 w-full h-full object-cover"
           />
           <button
             onClick={closeCamera}

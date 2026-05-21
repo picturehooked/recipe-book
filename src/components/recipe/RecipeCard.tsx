@@ -1,10 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Clock, Users } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { Badge } from '@/components/ui/Badge'
 import { FavouriteButton } from '@/components/ui/FavouriteButton'
-import { formatTime } from '@/lib/utils/formatters'
 import type { RecipeSummary } from '@/types'
 
 interface RecipeCardProps {
@@ -13,8 +10,6 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
-  const totalTime = (recipe.prep_time_mins ?? 0) + (recipe.cook_time_mins ?? 0)
-
   return (
     <Link
       href={`/recipes/${recipe.id}`}
@@ -45,8 +40,17 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           </div>
         )}
 
-        {/* Favourite button — top right */}
-        <div className="absolute top-2 right-2">
+        {/* Favourite button — mobile: xs at bottom-right; desktop: sm at top-right */}
+        <div className="sm:hidden absolute bottom-2 right-2">
+          <div className="rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+            <FavouriteButton
+              recipeId={recipe.id}
+              active={recipe.is_favourite}
+              size="xs"
+            />
+          </div>
+        </div>
+        <div className="hidden sm:block absolute top-2 right-2">
           <div className="rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
             <FavouriteButton
               recipeId={recipe.id}
@@ -56,9 +60,9 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           </div>
         </div>
 
-        {/* Category badge — bottom left */}
+        {/* Category badge — desktop only */}
         {recipe.category && (
-          <div className="absolute bottom-2 left-2">
+          <div className="hidden sm:block absolute bottom-2 left-2">
             <span className={cn(
               'text-xs font-medium px-2 py-0.5 rounded-full',
               'bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm',
@@ -81,32 +85,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           {recipe.title}
         </h3>
 
-        {/* Meta row */}
-        <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
-          {recipe.servings && (
-            <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" strokeWidth={1.75} />
-              {recipe.servings}
-            </span>
-          )}
-          {totalTime > 0 && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" strokeWidth={1.75} />
-              {formatTime(totalTime)}
-            </span>
-          )}
-        </div>
-
-        {/* Tags */}
-        {recipe.tags && recipe.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-0.5">
-            {recipe.tags.slice(0, 3).map((tag) => (
-              <Badge key={tag.id} variant="tag" active={false}>
-                {tag.name}
-              </Badge>
-            ))}
-          </div>
-        )}
       </div>
     </Link>
   )

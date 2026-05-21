@@ -8,17 +8,19 @@ import { useToggleFavourite } from '@/hooks/useRecipes'
 interface FavouriteButtonProps {
   recipeId:  string
   active:    boolean
-  size?:     'sm' | 'md' | 'lg'
+  size?:     'xs' | 'sm' | 'md' | 'lg'
   className?: string
   onToggle?: (newState: boolean) => void
 }
 
 const sizeMap = {
+  xs:  'h-2.5 w-2.5',
   sm:  'h-4 w-4',
   md:  'h-5 w-5',
   lg:  'h-6 w-6',
 }
 const btnSizeMap = {
+  xs:  'p-1',
   sm:  'p-1.5',
   md:  'p-2',
   lg:  'p-2.5',
