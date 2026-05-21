@@ -57,7 +57,7 @@ const NOISE_PATTERNS = [
   /^(comments?|leave a comment|reply|responses?)/i,
   /^(rating|stars?|reviews?)/i,
   /^(pin it|save recipe|print recipe|jump to recipe)/i,
-  // Source attributions and bare URLs that OCR picks up from recipe printouts
+  // Source attributions and bare URLs — extracted separately before this filter runs
   /^source:/i,
   /^(www\.|https?:\/\/)/i,
 ]
@@ -65,6 +65,21 @@ const NOISE_PATTERNS = [
 // Ingredient line: optional quantity + optional unit + ingredient text
 const INGREDIENT_PATTERN =
   /^([\d½¼¾⅓⅔⅛⅜⅝⅞\s\/\-\.]+)?\s*(g|kg|ml|l|tsp|tbsp|cups?|teaspoons?|tablespoons?|grams?|kilograms?|millilitres?|litres?|oz|lb|pounds?|ounces?)?\s+(.+)/i
+
+// ---- OCR garbage detection ----------------------------------
+// Catches common Tesseract artefacts from rotated or low-quality images
+function isOcrGarbage(line: string): boolean {
+  // Pipe symbols never appear in recipe text
+  if (/\|/.test(line)) return true
+  // 1–3 all-uppercase chars with no lowercase (NY, LJ, TNS, etc.)
+  if (/^[A-Z]{1,3}$/.test(line.trim())) return true
+  // Lines that start with a closing bracket or parenthesis (OCR fragment)
+  if (/^[)}\]]/.test(line.trim())) return true
+  // Mostly non-alphanumeric
+  const alphaNum = (line.match(/[a-zA-Z0-9]/g) ?? []).length
+  if (line.length > 2 && alphaNum / line.length < 0.4) return true
+  return false
+}
 
 // ---- Bullet / OCR-noise stripping ---------------------------
 // Tesseract commonly misreads bullet characters (•) as:
@@ -112,6 +127,7 @@ export function parseOcrText(rawText: string): ImportedRecipe {
     .filter(l => l.length > 0)
 
   let title = ''
+  let source = ''
   const sections: IngredientSectionInput[] = []
   const methodSteps: string[] = []
 
@@ -133,21 +149,34 @@ export function parseOcrText(rawText: string): ImportedRecipe {
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i]
 
+    // ---- Source extraction (before noise filter) ----------------
+    // Capture source attribution so it populates the Source field
+    if (!source) {
+      const srcMatch = rawLine.match(/^source:\s*(.+)/i)
+      if (srcMatch) { source = srcMatch[1].trim(); continue }
+      if (/^(www\.|https?:\/\/)/i.test(rawLine.trim())) {
+        source = rawLine.trim()
+        continue
+      }
+    }
+
     // Strip OCR bullet noise, then normalise fractions
     const line = normaliseFractions(stripBullet(rawLine))
 
-    // ---- Skip noise ----------------------------------------
+    // ---- Skip noise and OCR garbage ----------------------------
     if (NOISE_PATTERNS.some(p => p.test(line))) continue
+    if (isOcrGarbage(line)) continue
     if (line.length < 2) continue
 
     // ---- Title detection (first substantial non-marker line) ---
-    if (!title && line.length > 3 && line.length < 120 && phase === 'scanning') {
+    if (!title && line.length > 7 && line.length < 120 && phase === 'scanning') {
       const isServingsLine =
         /^(serves?|servings?|yield|portions?)/i.test(line) ||
         /^\d+\s*(servings?|portions?|people|guests?)/i.test(line) ||
         /^serving size/i.test(line)
       if (
         !isServingsLine &&
+        /^[A-Z]/.test(line) &&
         !INGREDIENT_MARKERS.some(p => p.test(line)) &&
         !METHOD_MARKERS.some(p => p.test(line))
       ) {
@@ -203,10 +232,16 @@ export function parseOcrText(rawText: string): ImportedRecipe {
 
       if (!cleaned) continue
 
-      // Short continuation — append to previous step
-      if (cleaned.length < 40 && stepNumber > 0 && !cleaned.match(/^[A-Z]/)) {
-        methodSteps[stepNumber - 1] += ' ' + cleaned
-        continue
+      // Continuation: append if previous step ended mid-sentence OR this line
+      // starts with a lowercase letter (OCR often splits long method sentences)
+      if (stepNumber > 0) {
+        const prevStep = methodSteps[stepNumber - 1]
+        const prevEndsOpen = !/[.!?]$/.test(prevStep)
+        const startsLower  = !/^[A-Z0-9]/.test(cleaned)
+        if ((prevEndsOpen || startsLower) && cleaned.length < 120) {
+          methodSteps[stepNumber - 1] += ' ' + cleaned
+          continue
+        }
       }
 
       const condensed = condenseParagraph(cleaned)
@@ -217,9 +252,12 @@ export function parseOcrText(rawText: string): ImportedRecipe {
     }
 
     // ---- Fallback scanning phase -------------------------
+    // Only auto-start ingredient collection when a quantity or unit is present.
+    // Plain text lines (e.g. the recipe title) are too easily mis-parsed as
+    // ingredients in this phase.
     if (phase === 'scanning') {
       const ing = parseIngredientLine(line, 0)
-      if (ing) {
+      if (ing && (ing.quantity || ing.unit)) {
         phase = 'ingredients'
         currentSection = { title: '', display_order: 0, ingredients: [ing] }
       } else if (looksLikeMethodStep(line) && title) {
@@ -237,40 +275,73 @@ export function parseOcrText(rawText: string): ImportedRecipe {
   // Flush remaining section
   pushCurrentSection()
 
-  // ---- Title recovery --------------------------------------------------
-  // OCR engines (particularly phone scan modes) don't always output lines
-  // in strict top-to-bottom order — the title may appear after the
-  // Ingredients header in the raw stream, by which point the scanning phase
-  // has already closed. If we have no title yet, do a second pass over the
-  // first 15 raw lines and take the first clean candidate.
+  // ---- Deduplicate ingredients in each section ----------------
+  // Rotated or double-scanned images cause Tesseract to emit the same
+  // lines twice. Keep the first occurrence of each ingredient name.
+  for (const section of sections) {
+    const seen = new Set<string>()
+    section.ingredients = section.ingredients.filter(ing => {
+      const key = ing.ingredient_name.toLowerCase().trim()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  // Remove sections that are now empty after deduplication
+  const filledSections = sections.filter(s => s.ingredients.length > 0)
+
+  // ---- Deduplicate method steps ------------------------------
+  const uniqueSteps = methodSteps.filter((step, i) => {
+    const norm = step.toLowerCase().replace(/\s+/g, ' ').trim()
+    return !methodSteps.slice(0, i).some(prev =>
+      prev.toLowerCase().replace(/\s+/g, ' ').trim() === norm,
+    )
+  })
+
+  // ---- Title recovery ----------------------------------------
+  // Phone scan modes don't always output lines in strict top-to-bottom
+  // order, and the image may be rotated so the title appears late in the
+  // OCR stream. Search all raw lines and pick the best title candidate:
+  // the longest line that looks like a recipe name (starts uppercase,
+  // ≥2 words, no method verbs, not parseable as an ingredient).
   if (!title) {
     const rawLines = rawText
       .split(/\r?\n/)
       .map(l => l.trim())
-      .filter(l => l.length > 2)
-    for (const raw of rawLines.slice(0, 15)) {
+      .filter(l => l.length > 0)
+
+    let best = ''
+    for (const raw of rawLines) {
       const candidate = normaliseFractions(stripBullet(raw))
-      if (candidate.length < 3 || candidate.length > 120) continue
+      if (candidate.length < 10 || candidate.length > 80) continue
       if (NOISE_PATTERNS.some(p => p.test(candidate)))     continue
       if (INGREDIENT_MARKERS.some(p => p.test(candidate))) continue
       if (METHOD_MARKERS.some(p => p.test(candidate)))     continue
       if (/^(serves?|servings?|yield|portions?)/i.test(candidate)) continue
-      if (/^\d+\s*(servings?|portions?|people|guests?)/i.test(candidate)) continue
-      title = candidate
-      break
+      if (isOcrGarbage(candidate)) continue
+      if (looksLikeMethodStep(candidate)) continue
+      if (!/^[A-Z]/.test(candidate)) continue
+      if (candidate.split(/\s+/).length < 2) continue
+      // Reject if it parses as an ingredient with a recognised unit
+      const asIng = parseIngredientLine(candidate, 0)
+      if (asIng?.unit) continue
+      // Prefer longer candidates — titles tend to be more specific than fragments
+      if (candidate.length > best.length) best = candidate
     }
+    title = best
   }
 
-  // Ensure at least one empty section so the form renders
-  if (sections.length === 0) {
-    sections.push({ title: '', display_order: 0, ingredients: [] })
+  if (filledSections.length === 0) {
+    filledSections.push({ title: '', display_order: 0, ingredients: [] })
   }
 
   return {
-    title: title || 'Untitled Recipe',
-    sections,
-    method_steps: methodSteps,
-    raw_text: rawText,
+    title:        title || 'Untitled Recipe',
+    source:       source || undefined,
+    sections:     filledSections,
+    method_steps: uniqueSteps,
+    raw_text:     rawText,
   }
 }
 
@@ -282,6 +353,13 @@ function parseIngredientLine(
 
   // Skip lines that look like section headers or step numbers
   if (/^\d+\.?\s*$/.test(line)) return null
+
+  // Skip OCR garbage fragments (bracket-prefixed quantities like "TNS) 20g")
+  if (/^[A-Za-z]{1,4}\)/.test(line)) {
+    // Strip the garbage prefix and retry with the remainder
+    line = line.replace(/^[A-Za-z]+\)\s*/, '').trim()
+    if (line.length < 2) return null
+  }
 
   const match = line.match(INGREDIENT_PATTERN)
   if (!match) {

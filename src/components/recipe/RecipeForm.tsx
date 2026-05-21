@@ -608,8 +608,8 @@ function IngredientSection({
               dragOverIdx === ii && 'bg-amber-50 dark:bg-amber-900/10',
             )}
           >
-            {/* Drag handle */}
-            <div className="cursor-grab active:cursor-grabbing flex-shrink-0 p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-400 touch-none">
+            {/* Drag handle — hidden on mobile (touch drag unreliable on small screens) */}
+            <div className="hidden sm:flex cursor-grab active:cursor-grabbing flex-shrink-0 p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-400 touch-none">
               <GripVertical className="h-4 w-4" strokeWidth={1.75} />
             </div>
 
@@ -619,7 +619,7 @@ function IngredientSection({
               inputMode="decimal"
               placeholder="Qty"
               className={cn(
-                'w-16 rounded-lg px-2.5 py-2 text-sm text-center',
+                'w-12 sm:w-16 rounded-lg px-1.5 sm:px-2.5 py-2 text-sm text-center',
                 'text-zinc-900 dark:text-zinc-100',
                 'bg-white dark:bg-slate-850',
                 'border border-parchment-200 dark:border-slate-700',
@@ -631,7 +631,7 @@ function IngredientSection({
             {/* Unit */}
             <select
               className={cn(
-                'w-20 rounded-lg px-1.5 py-2 text-sm',
+                'w-16 sm:w-20 rounded-lg px-1 sm:px-1.5 py-2 text-sm',
                 'text-zinc-900 dark:text-zinc-100',
                 'bg-white dark:bg-slate-850',
                 'border border-parchment-200 dark:border-slate-700',

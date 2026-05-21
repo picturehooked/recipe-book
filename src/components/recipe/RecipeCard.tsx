@@ -35,7 +35,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
             alt={recipe.title}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            sizes="(max-width: 1024px) 33vw, 17vw"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -73,7 +73,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
       {/* Body */}
       <div className="flex flex-col gap-1.5 p-3">
         <h3 className={cn(
-          'font-serif text-base font-semibold leading-snug',
+          'font-serif text-xs lg:text-sm font-semibold leading-snug',
           'text-zinc-900 dark:text-zinc-100',
           'group-hover:text-amber-700 dark:group-hover:text-amber-400',
           'transition-colors line-clamp-2',

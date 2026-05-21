@@ -12,8 +12,8 @@ export function RecipeGrid({ recipes, loading, className }: RecipeGridProps) {
   if (loading) {
     return (
       <div className={cn(
-        'grid gap-4',
-        'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
+        'grid gap-3',
+        'grid-cols-3 lg:grid-cols-6',
         className,
       )}>
         {Array.from({ length: 8 }).map((_, i) => (
@@ -37,8 +37,8 @@ export function RecipeGrid({ recipes, loading, className }: RecipeGridProps) {
 
   return (
     <div className={cn(
-      'grid gap-4',
-      'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
+      'grid gap-3',
+      'grid-cols-3 lg:grid-cols-6',
       className,
     )}>
       {recipes.map((recipe) => (
