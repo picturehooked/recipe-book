@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { RecipeViewWrapper } from '@/components/recipe/RecipeViewWrapper'
 import type { Metadata } from 'next'
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export const revalidate = 0
 
 export default async function RecipePage({ params }: PageProps) {
+  noStore()
   const supabase = createClient()
   const { data, error } = await supabase
     .from('recipes')
