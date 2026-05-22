@@ -34,7 +34,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-4xl opacity-20 select-none">
+            <span className="text-7xl opacity-30 select-none">
               {getCategoryEmoji(recipe.category?.slug)}
             </span>
           </div>
@@ -96,8 +96,9 @@ function getCategoryEmoji(slug?: string): string {
     beef:     '🥩',
     lamb:     '🍖',
     fish:     '🐟',
-    starters: '🥗',
-    pasta:    '🍝',
+    starters:   '🥗',
+    'veg-sides': '🥦',
+    pasta:      '🍝',
     desserts: '🍰',
     bread:    '🍞',
     biscuits: '🍪',

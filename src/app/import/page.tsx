@@ -216,8 +216,8 @@ export default function ImportPage() {
         </div>
       ) : (
         /* Active import method */
-        <div className="space-y-5">
-          <div className="flex items-center gap-3">
+        <div className="sm:space-y-5">
+          <div className="hidden sm:flex items-center gap-3">
             <button
               onClick={() => { setMethod(null); setImportResult(null) }}
               className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
