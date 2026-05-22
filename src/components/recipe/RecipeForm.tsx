@@ -278,8 +278,7 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
         )
       }
 
-      router.refresh()
-      router.push('/')
+      window.location.href = '/'
     } catch (err: any) {
       setError(err.message ?? 'Failed to save recipe')
       setSaving(false)
