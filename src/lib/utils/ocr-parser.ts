@@ -111,18 +111,32 @@ function stripBullet(line: string): string {
 
 // ---- Fraction normalisation ---------------------------------
 // OCR sometimes returns Unicode fractions or splits them oddly
+const UNICODE_FRACTION_MAP: Record<string, number> = {
+  '½': 0.5, '¼': 0.25, '¾': 0.75,
+  '⅓': 1/3, '⅔': 2/3,
+  '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875,
+}
+const UNICODE_FRACTION_RE = /[½¼¾⅓⅔⅛⅜⅝⅞]/g
+
 function normaliseFractions(line: string): string {
   return line
-    // Mixed numbers FIRST: "1 1/2" → "1.5", "2 3/4" → "2.75"
+    // Mixed numbers with digit + Unicode fraction FIRST: "1 ½" → "1.5", "2 ¾" → "2.75"
+    // Must run before the bare Unicode replacements or "1 ½" becomes "1 0.5"
+    .replace(new RegExp(`(\\d+)\\s+(${UNICODE_FRACTION_RE.source})`), (_, whole, frac) =>
+      (Number(whole) + (UNICODE_FRACTION_MAP[frac] ?? 0)).toFixed(3).replace(/\.?0+$/, ''))
+    // Mixed numbers with slash: "1 1/2" → "1.5", "2 3/4" → "2.75"
     .replace(/(\d+)\s+(\d+)\s*\/\s*(\d+)/g, (_, whole, num, denom) =>
       (Number(whole) + Number(num) / Number(denom)).toFixed(3).replace(/\.?0+$/, ''))
-    // Unicode fractions
+    // Bare Unicode fractions: "½" → "0.5"
     .replace(/½/g, '0.5')
     .replace(/¼/g, '0.25')
     .replace(/¾/g, '0.75')
     .replace(/⅓/g, '0.33')
     .replace(/⅔/g, '0.67')
     .replace(/⅛/g, '0.125')
+    .replace(/⅜/g, '0.375')
+    .replace(/⅝/g, '0.625')
+    .replace(/⅞/g, '0.875')
     // Remaining simple fractions: "3/4" → "0.75"
     .replace(/(\d+)\s*\/\s*(\d+)/g, (_, num, denom) =>
       (Number(num) / Number(denom)).toFixed(3).replace(/\.?0+$/, ''))
@@ -247,9 +261,20 @@ export function parseOcrText(rawText: string): ImportedRecipe {
 
     // ---- Ingredient phase ------------------------------------
     if (phase === 'ingredients') {
-      // Sub-section header?
-      const isSectionHeader = SECTION_MARKERS.some(p => p.test(line))
-      if (isSectionHeader && line.length < 60 && !INGREDIENT_PATTERN.test(line)) {
+      // Sub-section header? Explicit SECTION_MARKERS patterns OR any short standalone
+      // line that can't be an ingredient — catches "Sauce", "Croutons", "For the base",
+      // "Salsa", etc. that fall outside the narrow marker list.
+      const matchesMarker = SECTION_MARKERS.some(p => p.test(line))
+      const looksLikeHeader =
+        line.length < 60 &&
+        /^[A-Z]/.test(line) &&               // starts uppercase
+        !/[\d]/.test(line.charAt(0)) &&      // doesn't start with a quantity digit
+        !/[.!?]$/.test(line) &&              // not a sentence-ending line (method step)
+        !looksLikeMethodStep(line) &&
+        !INGREDIENT_PATTERN.test(line) &&
+        currentSection.ingredients.length > 0  // only promote to header once we have some ingredients
+      const isSectionHeader = matchesMarker || looksLikeHeader
+      if (isSectionHeader && !INGREDIENT_PATTERN.test(line)) {
         pushCurrentSection()
         currentSection = { title: line, display_order: sections.length, ingredients: [] }
         continue
@@ -489,9 +514,7 @@ function looksLikeMethodStep(line: string): boolean {
   )
 }
 
-/** Keep first 2 sentences of a paragraph, max ~240 chars */
+/** Return the method step text as-is — no truncation. */
 function condenseParagraph(text: string): string {
-  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text]
-  const kept = sentences.slice(0, 2).join(' ').trim()
-  return kept.length > 240 ? kept.slice(0, 237).trimEnd() + '…' : kept
+  return text.trim()
 }

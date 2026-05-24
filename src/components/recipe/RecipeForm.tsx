@@ -108,7 +108,7 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
   }
 
   const {
-    register, control, handleSubmit, watch, setValue,
+    register, control, handleSubmit, watch, setValue, getValues,
     formState: { errors },
   } = useForm<RecipeFormValues>({
     resolver: zodResolver(schema),
@@ -177,6 +177,21 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
     } finally {
       setUploading(false)
     }
+  }
+
+  // ---- Move ingredient across sections -----------------------
+  function handleMoveIngredient(fromSectionIdx: number, ingredientIdx: number, toSectionIdx: number) {
+    const allSections = getValues('sections')
+    const ing = allSections[fromSectionIdx].ingredients[ingredientIdx]
+    const newFrom = allSections[fromSectionIdx].ingredients
+      .filter((_, i) => i !== ingredientIdx)
+      .map((item, i) => ({ ...item, display_order: i }))
+    const newTo = [
+      ...allSections[toSectionIdx].ingredients,
+      { ...ing, display_order: allSections[toSectionIdx].ingredients.length },
+    ]
+    setValue(`sections.${fromSectionIdx}.ingredients`, newFrom, { shouldDirty: true })
+    setValue(`sections.${toSectionIdx}.ingredients`, newTo,   { shouldDirty: true })
   }
 
   // ---- Save --------------------------------------------------
@@ -432,7 +447,11 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
               control={control}
               register={register}
               totalSections={sections.length}
+              sectionTitles={sections.map((s, i) => s.title || `Section ${i + 1}`)}
               onRemoveSection={() => removeSection(si)}
+              onMoveIngredient={(ingredientIdx, toSection) =>
+                handleMoveIngredient(si, ingredientIdx, toSection)
+              }
             />
           ))}
         </div>
@@ -567,15 +586,17 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
 // ---- Ingredient section sub-component ----------------------
 
 interface IngredientSectionProps {
-  sectionIndex:    number
-  control:         any
-  register:        any
-  totalSections:   number
-  onRemoveSection: () => void
+  sectionIndex:      number
+  control:           any
+  register:          any
+  totalSections:     number
+  sectionTitles:     string[]
+  onRemoveSection:   () => void
+  onMoveIngredient:  (ingredientIdx: number, toSectionIdx: number) => void
 }
 
 function IngredientSection({
-  sectionIndex, control, register, totalSections, onRemoveSection,
+  sectionIndex, control, register, totalSections, sectionTitles, onRemoveSection, onMoveIngredient,
 }: IngredientSectionProps) {
   const { fields, append, remove, move } = useFieldArray({
     control,
@@ -716,6 +737,33 @@ function IngredientSection({
               )}
               {...register(`sections.${sectionIndex}.ingredients.${ii}.preparation`)}
             />
+
+            {/* Move to another section — only shown when multiple sections exist */}
+            {totalSections > 1 && (
+              <select
+                title="Move to section"
+                value=""
+                onChange={(e) => {
+                  const target = Number(e.target.value)
+                  if (!isNaN(target)) onMoveIngredient(ii, target)
+                }}
+                className={cn(
+                  'hidden sm:block w-8 rounded-lg py-2 text-xs text-center',
+                  'text-zinc-400 dark:text-zinc-500',
+                  'bg-white dark:bg-slate-850',
+                  'border border-parchment-200 dark:border-slate-700',
+                  'focus:outline-none focus:ring-2 focus:ring-amber-500',
+                  'cursor-pointer',
+                )}
+              >
+                <option value="" disabled>↗</option>
+                {sectionTitles.map((title, ti) =>
+                  ti !== sectionIndex ? (
+                    <option key={ti} value={ti}>→ {title}</option>
+                  ) : null
+                )}
+              </select>
+            )}
 
             {/* Remove */}
             <button

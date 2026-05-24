@@ -59,7 +59,9 @@ export function FileImport({ onResults }: FileImportProps) {
 
   // ---- Extract text + images from a Word document -------------
   // mammoth.convertToHtml embeds images as base64 data URIs by default.
-  // We extract all of them so multi-recipe docs can get one image each.
+  // We replace each <img> tag with a positional placeholder (__IMAGE_N__) so
+  // the placeholder travels with its surrounding text through the recipe splitter.
+  // This lets us assign each recipe its nearest image rather than guessing by index.
   async function extractDocxContent(file: File): Promise<{ text: string; images: string[] }> {
     const mammoth = await import('mammoth')
     const arrayBuffer = await file.arrayBuffer()
@@ -67,14 +69,19 @@ export function FileImport({ onResults }: FileImportProps) {
     const result = await mammoth.convertToHtml({ arrayBuffer })
     const html   = result.value
 
-    // Collect all embedded image data URIs in order
+    // Replace each <img src="data:..."> with __IMAGE_N__ and collect data URIs
     const images: string[] = []
-    const imgRe = /<img[^>]+src="(data:[^"]+)"/g
-    let m: RegExpExecArray | null
-    while ((m = imgRe.exec(html)) !== null) images.push(m[1])
+    const htmlWithPlaceholders = html.replace(
+      /<img[^>]+src="(data:[^"]+)"[^>]*\/?>/g,
+      (_, dataUri: string) => {
+        const idx = images.length
+        images.push(dataUri)
+        return `\n__IMAGE_${idx}__\n`
+      },
+    )
 
-    // Extract plain text from the same HTML (preserves line structure)
-    const text = html
+    // Extract plain text, keeping __IMAGE_N__ placeholders intact
+    const text = htmlWithPlaceholders
       .replace(/<\/?(p|h[1-6]|li|br)[^>]*>/gi, '\n')
       .replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ')
@@ -170,21 +177,30 @@ export function FileImport({ onResults }: FileImportProps) {
 
       setProgress(70)
       setStatus('Detecting recipes…')
+      // chunks may contain __IMAGE_N__ placeholders for docx files
       const chunks = splitIntoRecipes(fullText)
 
       setProgress(80)
       setStatus(`Parsing ${chunks.length} recipe${chunks.length === 1 ? '' : 's'}…`)
-      const parsed = chunks.map(chunk => parseOcrText(chunk))
+      // Strip image placeholders before passing text to the parser
+      const parsed = chunks.map(chunk => parseOcrText(chunk.replace(/__IMAGE_\d+__/g, '')))
 
-      // Upload any extracted images — one per recipe, matched by index
+      // Match images to recipes by placeholder position (docx only).
+      // Each chunk may contain an __IMAGE_N__ marker; use the first one found
+      // as the hero image for that recipe. This is position-aware and avoids
+      // the index-mismatch bug where image N is assigned to recipe N regardless
+      // of where the image actually appeared in the document.
       let heroUrls: (string | null)[] = new Array(parsed.length).fill(null)
       if (docxImages.length > 0) {
+        const matchedDataUris: (string | null)[] = chunks.map(chunk => {
+          const m = chunk.match(/__IMAGE_(\d+)__/)
+          if (!m) return null
+          return docxImages[Number(m[1])] ?? null
+        })
         setProgress(85)
         setStatus('Uploading images…')
         heroUrls = await Promise.all(
-          parsed.map((_, i) =>
-            docxImages[i] ? uploadDataUri(docxImages[i]) : Promise.resolve(null)
-          )
+          matchedDataUris.map(uri => uri ? uploadDataUri(uri) : Promise.resolve(null))
         )
       }
 
