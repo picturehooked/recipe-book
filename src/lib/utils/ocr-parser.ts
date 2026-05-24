@@ -57,6 +57,14 @@ const NOISE_PATTERNS = [
   /^(comments?|leave a comment|reply|responses?)/i,
   /^(rating|stars?|reviews?)/i,
   /^(pin it|save recipe|print recipe|jump to recipe)/i,
+  // Allrecipes-style serving info line: "Original recipe (1X) yields 2 servings"
+  /^original recipe\b/i,
+  // Serving-size scaler buttons (e.g. allrecipes "½x / 1x / 2x")
+  // These survive fraction-normalisation as decimals like "0.5x", "1x", "2x"
+  /^[\d\.]+x$/i,
+  // Website unit-toggle UI labels — sometimes concatenated in the DOM
+  /^US\s*Customary(Metric)?$/i,
+  /^Metric$/i,
   // Source attributions and bare URLs — extracted separately before this filter runs
   /^source:/i,
   /^(www\.|https?:\/\/)/i,
@@ -86,7 +94,7 @@ function isOcrGarbage(line: string): boolean {
 // *, -, –, ¢, ©, °, and single letters like e, o, c
 function stripBullet(line: string): string {
   // Genuine bullet/list characters
-  const stripped = line.replace(/^[•·○◦▪▸►‣⁃⁎●]\s*/, '')
+  const stripped = line.replace(/^[•·○◦▪▸►‣⁃⁎●▢☐☑☒◻◽]\s*/, '')
   if (stripped !== line) return stripped.trim()
 
   // Common OCR symbol misreads followed by whitespace
@@ -118,6 +126,44 @@ function normaliseFractions(line: string): string {
     // Remaining simple fractions: "3/4" → "0.75"
     .replace(/(\d+)\s*\/\s*(\d+)/g, (_, num, denom) =>
       (Number(num) / Number(denom)).toFixed(3).replace(/\.?0+$/, ''))
+}
+
+// ============================================================
+// Multi-recipe detection
+// ============================================================
+// Splits a block of text that contains multiple pasted recipes
+// into individual chunks. Uses bare URL lines as natural
+// separators — each recipe from a website ends with its URL.
+// Falls back to title-detection splitting when no URLs are found.
+// ============================================================
+
+export function splitIntoRecipes(rawText: string): string[] {
+  const lines = rawText.split(/\r?\n/)
+  const chunks: string[] = []
+  let current: string[] = []
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    // A bare URL line signals the end of a recipe
+    if (/^(www\.|https?:\/\/)/i.test(trimmed) && current.length > 0) {
+      current.push(line)
+      const chunk = current.join('\n').trim()
+      if (chunk.length > 50) chunks.push(chunk)
+      current = []
+    } else {
+      current.push(line)
+    }
+  }
+
+  // Flush any remaining content
+  const tail = current.join('\n').trim()
+  if (tail.length > 50) chunks.push(tail)
+
+  // If no URL-based splits were found, return the whole text as one recipe
+  if (chunks.length === 0) return [rawText]
+
+  // Filter out chunks that are too short to be a recipe
+  return chunks.filter(c => c.trim().length > 100)
 }
 
 export function parseOcrText(rawText: string): ImportedRecipe {

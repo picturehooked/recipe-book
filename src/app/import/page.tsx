@@ -2,29 +2,32 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Link2, Camera, FileText, PenLine, ChevronLeft, AlertTriangle, ImagePlus, Loader2, X } from 'lucide-react'
+import { Camera, FileText, PenLine, ChevronLeft, AlertTriangle, ImagePlus, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { URLImport }   from '@/components/import/URLImport'
 import { PhotoImport } from '@/components/import/PhotoImport'
-import { PDFImport }   from '@/components/import/PDFImport'
+import { FileImport }  from '@/components/import/FileImport'
 import { RecipeForm }  from '@/components/recipe/RecipeForm'
 import { createClient } from '@/lib/supabase/client'
 import type { ImportMethod, ImportResult, Category, Tag } from '@/types'
 import Link from 'next/link'
 
 const METHODS: { id: ImportMethod; label: string; icon: React.ElementType; description: string }[] = [
-  { id: 'url',    label: 'From URL',   icon: Link2,    description: 'Paste a link to any recipe page' },
-  { id: 'photo',  label: 'Photo',      icon: Camera,   description: 'Take or upload a photo of a recipe' },
-  { id: 'pdf',    label: 'PDF',        icon: FileText,  description: 'Upload a PDF — digital or scanned' },
-  { id: 'manual', label: 'Manual',     icon: PenLine,  description: 'Enter recipe details from scratch' },
+  { id: 'manual', label: 'Manual', icon: PenLine,  description: 'Enter recipe details from scratch' },
+  { id: 'photo',  label: 'Photo',  icon: Camera,   description: 'Take or upload a photo of a recipe' },
+  { id: 'file',   label: 'File',   icon: FileText, description: 'PDF or Word document — one or multiple recipes' },
 ]
 
 export default function ImportPage() {
-  const router = useRouter()
+  const router  = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [method, setMethod]               = useState<ImportMethod | null>(null)
+  // Multi-recipe queue
+  const [importQueue, setImportQueue]     = useState<ImportResult[]>([])
+  const [queueIndex, setQueueIndex]       = useState(0)
+  const [queueTotal, setQueueTotal]       = useState(0)
+  // Single active result (current item being reviewed)
   const [importResult, setImportResult]   = useState<ImportResult | null>(null)
   const [categories, setCategories]       = useState<Category[]>([])
   const [tags, setTags]                   = useState<Tag[]>([])
@@ -44,12 +47,44 @@ export default function ImportPage() {
     })
   }, [])
 
-  function handleResult(result: ImportResult) {
-    setImportResult(result)
-    setHeroImageUrl(result.recipe?.hero_image_url ?? null)
-    setHeroPreview(result.recipe?.hero_image_url ?? null)
-    if (!result.success) return
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  // Advance to the next recipe in the queue, or go home when done
+  function advanceQueue(fromIndex: number) {
+    const next = fromIndex + 1
+    if (next < importQueue.length) {
+      setQueueIndex(next)
+      const nextResult = importQueue[next]
+      setImportResult(nextResult)
+      setHeroImageUrl(nextResult.recipe?.hero_image_url ?? null)
+      setHeroPreview(nextResult.recipe?.hero_image_url ?? null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      // All done
+      window.location.href = '/'
+    }
+  }
+
+  // Called when FileImport or PhotoImport produces results
+  function handleResults(results: ImportResult[]) {
+    if (results.length === 0) return
+    const successes = results.filter(r => r.success)
+    if (successes.length === 0) {
+      // All failed — show the first error
+      setImportResult(results[0])
+      return
+    }
+    setImportQueue(results)
+    setQueueIndex(0)
+    setQueueTotal(results.length)
+    const first = results[0]
+    setImportResult(first)
+    setHeroImageUrl(first.recipe?.hero_image_url ?? null)
+    setHeroPreview(first.recipe?.hero_image_url ?? null)
+    if (first.success) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // PhotoImport still returns a single result
+  function handleSingleResult(result: ImportResult) {
+    handleResults([result])
   }
 
   async function handleHeroUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -77,7 +112,7 @@ export default function ImportPage() {
     }
   }
 
-  // If we have a successful import, show the review/edit form
+  // ---- Review screen ------------------------------------------
   if (importResult?.success && importResult.recipe) {
     const prefill = {
       title:          importResult.recipe.title,
@@ -86,11 +121,23 @@ export default function ImportPage() {
       sections:       importResult.recipe.sections,
       method_steps:   importResult.recipe.method_steps,
     }
+
+    const isMulti     = queueTotal > 1
+    const currentNum  = queueIndex + 1
+    const hasMore     = queueIndex < queueTotal - 1
+
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
           <button
-            onClick={() => { setImportResult(null); setHeroImageUrl(null); setHeroPreview(null) }}
+            onClick={() => {
+              setImportResult(null)
+              setImportQueue([])
+              setQueueIndex(0)
+              setQueueTotal(0)
+              setHeroImageUrl(null)
+              setHeroPreview(null)
+            }}
             className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
@@ -99,6 +146,11 @@ export default function ImportPage() {
           <h1 className="font-serif text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             Review recipe
           </h1>
+          {isMulti && (
+            <span className="ml-auto text-sm text-zinc-400 dark:text-zinc-500 tabular-nums">
+              Importing {currentNum} of {queueTotal}
+            </span>
+          )}
         </div>
 
         {importResult.warning && (
@@ -159,19 +211,59 @@ export default function ImportPage() {
 
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
           Review and correct the extracted recipe before saving.
+          {isMulti && hasMore && (
+            <span className="block mt-1 text-xs">
+              After saving, you'll be taken to recipe {currentNum + 1} of {queueTotal}.
+            </span>
+          )}
         </p>
 
+        {/* Skip button for multi-recipe flows */}
+        {isMulti && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => advanceQueue(queueIndex)}
+              className="text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              {hasMore ? `Skip — next recipe →` : 'Skip this one'}
+            </button>
+          </div>
+        )}
+
         <RecipeForm
-          key={heroImageUrl ?? 'no-image'}
+          key={`${queueIndex}-${heroImageUrl ?? 'no-image'}`}
           categories={categories}
           tags={tags}
           prefill={prefill as any}
           isImport
+          onSaved={isMulti ? () => advanceQueue(queueIndex) : undefined}
         />
       </div>
     )
   }
 
+  // ---- Error screen -------------------------------------------
+  if (importResult && !importResult.success) {
+    return (
+      <div className="max-w-xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => setImportResult(null)}
+            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+            Back
+          </button>
+          <h1 className="font-serif text-2xl font-bold text-zinc-900 dark:text-zinc-50">Import failed</h1>
+        </div>
+        <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
+          <p className="text-sm text-red-700 dark:text-red-400">{importResult.error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- Method picker + import screens -------------------------
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex items-center gap-3 mb-6">
@@ -189,7 +281,7 @@ export default function ImportPage() {
 
       {!method ? (
         /* Method picker */
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-3">
           {METHODS.map((m) => (
             <button
               key={m.id}
@@ -198,7 +290,7 @@ export default function ImportPage() {
                 else setMethod(m.id)
               }}
               className={cn(
-                'flex flex-col items-start gap-2 rounded-2xl p-5 text-left',
+                'flex items-center gap-5 rounded-2xl p-5 text-left',
                 'bg-white dark:bg-slate-850',
                 'border border-parchment-200 dark:border-slate-700',
                 'hover:border-amber-300 dark:hover:border-amber-700',
@@ -206,7 +298,9 @@ export default function ImportPage() {
                 'transition-all',
               )}
             >
-              <m.icon className="h-6 w-6 text-amber-600 dark:text-amber-400" strokeWidth={1.75} />
+              <div className="flex items-center justify-center w-14 flex-shrink-0">
+                <m.icon className="h-10 w-10 text-amber-600 dark:text-amber-400" strokeWidth={1.5} />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{m.label}</p>
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 leading-snug">{m.description}</p>
@@ -231,9 +325,8 @@ export default function ImportPage() {
           </div>
 
           <div className="rounded-2xl bg-white dark:bg-slate-850 border border-parchment-200 dark:border-slate-800 p-5">
-            {method === 'url'   && <URLImport   onResult={handleResult} />}
-            {method === 'photo' && <PhotoImport onResult={handleResult} />}
-            {method === 'pdf'   && <PDFImport   onResult={handleResult} />}
+            {method === 'file'  && <FileImport  onResults={handleResults} />}
+            {method === 'photo' && <PhotoImport onResult={handleSingleResult} />}
           </div>
         </div>
       )}

@@ -140,7 +140,7 @@ export interface RecipeFormValues {
 // Import types
 // ============================================================
 
-export type ImportMethod = 'url' | 'photo' | 'pdf' | 'manual'
+export type ImportMethod = 'file' | 'photo' | 'manual'
 
 export interface ImportedRecipe {
   title: string

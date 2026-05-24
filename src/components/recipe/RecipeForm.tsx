@@ -57,9 +57,10 @@ interface RecipeFormProps {
   tags:       Tag[]
   prefill?:   Partial<RecipeFormValues>
   isImport?:  boolean   // when true, skip adding new entries to the ingredients database
+  onSaved?:   () => void  // when provided, called after save instead of navigating to '/'
 }
 
-export function RecipeForm({ recipe, categories, tags, prefill, isImport = false }: RecipeFormProps) {
+export function RecipeForm({ recipe, categories, tags, prefill, isImport = false, onSaved }: RecipeFormProps) {
   const router      = useRouter()
   const supabase    = createClient()
   const { getOrCreate } = useIngredients()
@@ -278,7 +279,11 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
         )
       }
 
-      window.location.href = '/'
+      if (onSaved) {
+        onSaved()
+      } else {
+        window.location.href = '/'
+      }
     } catch (err: any) {
       setError(err.message ?? 'Failed to save recipe')
       setSaving(false)
