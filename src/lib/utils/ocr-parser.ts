@@ -151,32 +151,71 @@ function normaliseFractions(line: string): string {
 // Falls back to title-detection splitting when no URLs are found.
 // ============================================================
 
+// ============================================================
+// Multi-recipe boundary detection
+//
+// Rules (in priority order):
+//   1. A line matching /^---+$/ is an explicit recipe separator.
+//   2. A "Source:" label or bare URL/www line ends the current recipe
+//      (the source line is included in the chunk before flushing).
+//   3. After a method phase has been seen, an ingredient section
+//      marker signals the start of the next recipe — the current
+//      chunk is flushed and the ingredients line opens the new one.
+// ============================================================
+
 export function splitIntoRecipes(rawText: string): string[] {
   const lines = rawText.split(/\r?\n/)
   const chunks: string[] = []
   let current: string[] = []
+  let seenMethod = false
+
+  const flush = () => {
+    const chunk = current.join('\n').trim()
+    if (chunk.length > 50) chunks.push(chunk)
+    current = []
+    seenMethod = false
+  }
 
   for (const line of lines) {
     const trimmed = line.trim()
-    // A bare URL line signals the end of a recipe
-    if (/^(www\.|https?:\/\/)/i.test(trimmed) && current.length > 0) {
-      current.push(line)
-      const chunk = current.join('\n').trim()
-      if (chunk.length > 50) chunks.push(chunk)
-      current = []
-    } else {
-      current.push(line)
+
+    // Rule 1 — explicit --- separator
+    if (/^---+$/.test(trimmed)) {
+      flush()
+      continue
     }
+
+    // Rule 2 — source label or bare URL ends the current recipe
+    const isSource =
+      /^source:/i.test(trimmed) ||
+      /^(www\.|https?:\/\/)/i.test(trimmed)
+    if (isSource && current.length > 0) {
+      current.push(line)   // include source line in this recipe's chunk
+      flush()
+      continue
+    }
+
+    // Track entry into method phase
+    if (METHOD_MARKERS.some(p => p.test(trimmed))) {
+      seenMethod = true
+    }
+
+    // Rule 3 — ingredients marker after a method = new recipe starts here
+    if (seenMethod && INGREDIENT_MARKERS.some(p => p.test(trimmed)) && current.length > 0) {
+      flush()
+      // Fall through — this ingredients line belongs to the new recipe
+    }
+
+    current.push(line)
   }
 
   // Flush any remaining content
-  const tail = current.join('\n').trim()
-  if (tail.length > 50) chunks.push(tail)
+  flush()
 
-  // If no URL-based splits were found, return the whole text as one recipe
+  // If no splits found, return the whole text as one recipe
   if (chunks.length === 0) return [rawText]
 
-  // Filter out chunks that are too short to be a recipe
+  // Filter out chunks too short to be a recipe
   return chunks.filter(c => c.trim().length > 100)
 }
 

@@ -6,15 +6,16 @@
 -- RECIPE CATEGORIES
 -- ============================================================
 insert into categories (name, slug, sort_order) values
-  ('Starters',  'starters',  1),
-  ('Pasta',     'pasta',     2),
-  ('Chicken',   'chicken',   3),
-  ('Beef',      'beef',      4),
-  ('Lamb',      'lamb',      5),
-  ('Fish',      'fish',      6),
-  ('Desserts',  'desserts',  7),
-  ('Bread',     'bread',     8),
-  ('Biscuits',  'biscuits',  9)
+  ('Starters',   'starters',   1),
+  ('Pasta',      'pasta',      2),
+  ('Chicken',    'chicken',    3),
+  ('Beef',       'beef',       4),
+  ('Lamb',       'lamb',       5),
+  ('Fish',       'fish',       6),
+  ('Veg & Sides','veg-sides',  7),
+  ('Desserts',   'desserts',   8),
+  ('Bread',      'bread',      9),
+  ('Biscuits',   'biscuits',   10)
 on conflict (slug) do nothing;
 
 -- ============================================================
@@ -157,5 +158,9 @@ insert into tags (name, slug) values
   ('Vegetarian',  'vegetarian'),
   ('Vegan',       'vegan'),
   ('One pot',     'one-pot'),
-  ('Weekend',     'weekend')
+  ('Weekend',     'weekend'),
+  ('Indian',      'indian'),
+  ('Asian',       'asian'),
+  ('Healthy',     'healthy'),
+  ('Diet',        'diet')
 on conflict (slug) do nothing;

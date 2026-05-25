@@ -335,6 +335,7 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
                 label="Category"
                 placeholder="Select category"
                 options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                className={!field.value ? 'border-red-300 dark:border-red-700' : undefined}
                 {...field}
               />
             )}
