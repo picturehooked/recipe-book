@@ -194,6 +194,34 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
     setValue(`sections.${toSectionIdx}.ingredients`, newTo,   { shouldDirty: true })
   }
 
+  // ---- Remove section — merge its ingredients up (or down) ----
+  // Ingredients are never silently dropped. When a section is removed,
+  // its ingredients are appended to the nearest sibling section so the
+  // user can tidy them rather than re-enter them.
+  function handleRemoveSection(si: number) {
+    const allSections = getValues('sections')
+    const dying = allSections[si]
+
+    if (dying.ingredients.length > 0 && allSections.length > 1) {
+      // Prefer the section above; fall back to the one below
+      const targetIdx = si > 0 ? si - 1 : 1
+      const targetIngredients = allSections[targetIdx].ingredients
+      const merged = [
+        ...targetIngredients,
+        ...dying.ingredients.map((ing, i) => ({
+          ...ing,
+          display_order: targetIngredients.length + i,
+        })),
+      ]
+      // Adjust targetIdx for the index shift caused by the removal when
+      // merging downward (si === 0 → target was 1, becomes 0 after remove)
+      const adjustedTarget = si === 0 ? 0 : targetIdx
+      setValue(`sections.${adjustedTarget}.ingredients`, merged, { shouldDirty: true })
+    }
+
+    removeSection(si)
+  }
+
   // ---- Save --------------------------------------------------
   const onSubmit = useCallback(async (values: RecipeFormValues) => {
     setSaving(true)
@@ -449,7 +477,7 @@ export function RecipeForm({ recipe, categories, tags, prefill, isImport = false
               register={register}
               totalSections={sections.length}
               sectionTitles={sections.map((s, i) => s.title || `Section ${i + 1}`)}
-              onRemoveSection={() => removeSection(si)}
+              onRemoveSection={() => handleRemoveSection(si)}
               onMoveIngredient={(ingredientIdx, toSection) =>
                 handleMoveIngredient(si, ingredientIdx, toSection)
               }
@@ -749,7 +777,7 @@ function IngredientSection({
                   if (!isNaN(target)) onMoveIngredient(ii, target)
                 }}
                 className={cn(
-                  'hidden sm:block w-8 rounded-lg py-2 text-xs text-center',
+                  'w-8 rounded-lg py-2 text-xs text-center',
                   'text-zinc-400 dark:text-zinc-500',
                   'bg-white dark:bg-slate-850',
                   'border border-parchment-200 dark:border-slate-700',
