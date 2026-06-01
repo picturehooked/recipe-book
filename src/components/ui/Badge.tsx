@@ -47,6 +47,7 @@ export function Badge({
 
   return (
     <Comp
+      {...(isInteractive ? { type: 'button' } : {})}
       onClick={onClick}
       className={cn(
         'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs',

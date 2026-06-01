@@ -284,7 +284,6 @@ export function RecipeView({ recipe }: RecipeViewProps) {
                 completedSteps={completedSteps}
                 progressPct={progressPct}
                 onToggleStep={toggleStep}
-                notes={recipe.notes}
               />
             </div>
 
@@ -309,6 +308,18 @@ export function RecipeView({ recipe }: RecipeViewProps) {
                 />
               )}
             </div>
+
+            {/* Notes — always visible below both panels */}
+            {recipe.notes && (
+              <div className="mt-6 pt-4 border-t border-parchment-200 dark:border-slate-800">
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2">
+                  Notes
+                </p>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed italic">
+                  {recipe.notes}
+                </p>
+              </div>
+            )}
 
           </div>
         </div>
@@ -421,11 +432,10 @@ interface MethodPanelProps {
   completedSteps: Set<number>
   progressPct:    number
   onToggleStep:   (n: number) => void
-  notes?:         string | null
 }
 
 function MethodPanel({
-  steps, completedSteps, progressPct, onToggleStep, notes
+  steps, completedSteps, progressPct, onToggleStep
 }: MethodPanelProps) {
   return (
     <div>
@@ -485,16 +495,6 @@ function MethodPanel({
         })}
       </ol>
 
-      {notes && (
-        <div className="mt-6 pt-4 border-t border-parchment-200 dark:border-slate-800">
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2">
-            Notes
-          </p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed italic">
-            {notes}
-          </p>
-        </div>
-      )}
     </div>
   )
 }
