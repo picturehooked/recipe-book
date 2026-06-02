@@ -1,18 +1,9 @@
 import React from 'react'
 import {
   Document, Page, Text, View, Image,
-  StyleSheet, Font,
+  StyleSheet,
 } from '@react-pdf/renderer'
 import type { Recipe } from '@/types'
-
-// Caveat is fetched from Google Fonts CDN at PDF-generation time in the user's browser
-Font.register({
-  family: 'Caveat',
-  src: 'https://fonts.gstatic.com/s/caveat/v17/WnznHAc5bAfYB2Q0_hA.ttf',
-})
-
-// Suppress page-break hyphenation
-Font.registerHyphenationCallback((word) => [word])
 
 // ---- Palette -------------------------------------------------------
 const C = {
@@ -37,18 +28,21 @@ const s = StyleSheet.create({
     padding: 60,
   },
   coverTitle: {
-    fontFamily: 'Caveat',
-    fontSize: 60,
+    fontFamily: 'Times-BoldItalic',
+    fontSize: 58,
     color: C.white,
     textAlign: 'center',
     lineHeight: 1.25,
+    letterSpacing: 1,
   },
   coverSubline: {
-    fontFamily: 'Caveat',
-    fontSize: 22,
+    fontFamily: 'Times-Italic',
+    fontSize: 18,
     color: '#888888',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 20,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
   },
 
   // Shared content page
