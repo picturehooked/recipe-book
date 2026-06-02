@@ -2,7 +2,6 @@ import React from 'react'
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { Recipe } from '@/types'
 
-// ---- Styles --------------------------------------------------------
 const s = StyleSheet.create({
   page: {
     backgroundColor: '#ffffff',
@@ -10,36 +9,31 @@ const s = StyleSheet.create({
     paddingTop: 70,
     paddingBottom: 70,
   },
-  // Outer container — fills remaining height and distributes children evenly
   inner: {
     flex: 1,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-evenly',
   },
-  // Title
   title: {
     fontFamily: 'Times-BoldItalic',
-    fontSize: 46,
+    fontSize: 48,            // was 46, +2
     color: '#111111',
     textAlign: 'center',
     letterSpacing: 1.5,
   },
-  // Thin ornamental rule under the title
   rule: {
     width: 60,
     borderBottomWidth: 1,
     borderBottomColor: '#999999',
-    marginTop: 0,
     alignSelf: 'center',
   },
-  // Category block (heading + recipe names grouped together)
   catBlock: {
     alignItems: 'center',
   },
   catName: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 10,            // was 8, +2
     color: '#111111',
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -48,29 +42,31 @@ const s = StyleSheet.create({
   },
   recipeName: {
     fontFamily: 'Times-Roman',
-    fontSize: 12,
+    fontSize: 14,            // was 12, +2
     color: '#333333',
     textAlign: 'center',
     lineHeight: 1.6,
   },
 })
 
-// ---- Helpers -------------------------------------------------------
-
+// Sort by DB-defined sort_order, then A→Z within each category
 function buildMenuGroups(recipes: Recipe[]): { name: string; recipes: Recipe[] }[] {
-  const map = new Map<string, { name: string; recipes: Recipe[] }>()
+  const map = new Map<string, { name: string; sortOrder: number; recipes: Recipe[] }>()
   recipes.forEach(r => {
-    const key  = r.category?.id ?? '__uncat__'
-    const name = r.category?.name ?? 'Uncategorised'
-    if (!map.has(key)) map.set(key, { name, recipes: [] })
+    const key = r.category?.id ?? '__uncat__'
+    if (!map.has(key)) map.set(key, {
+      name:      r.category?.name       ?? 'Uncategorised',
+      sortOrder: r.category?.sort_order ?? 9999,
+      recipes:   [],
+    })
     map.get(key)!.recipes.push(r)
   })
   return Array.from(map.values())
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map(g => ({ ...g, recipes: g.recipes.slice().sort((a, b) => a.title.localeCompare(b.title)) }))
+    .sort((a, b) => a.sortOrder !== b.sortOrder
+      ? a.sortOrder - b.sortOrder
+      : a.name.localeCompare(b.name))
+    .map(g => ({ name: g.name, recipes: g.recipes.slice().sort((a, b) => a.title.localeCompare(b.title)) }))
 }
-
-// ---- Component -----------------------------------------------------
 
 export interface MenuPDFProps {
   title:   string
@@ -85,13 +81,10 @@ export function MenuPDF({ title, recipes }: MenuPDFProps) {
     <Document title={displayTitle}>
       <Page size="A4" style={s.page}>
         <View style={s.inner}>
-          {/* Header */}
           <View style={{ alignItems: 'center' }}>
             <Text style={s.title}>{displayTitle}</Text>
             <View style={s.rule} />
           </View>
-
-          {/* Categories */}
           {groups.map(group => (
             <View key={group.name} style={s.catBlock}>
               <Text style={s.catName}>{group.name}</Text>

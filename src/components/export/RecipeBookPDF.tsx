@@ -2,8 +2,6 @@ import React from 'react'
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'
 import type { Recipe } from '@/types'
 
-// Name used when the chalk font is registered externally before generation.
-// Falls back to Times-BoldItalic if font loading fails.
 export const CHALK_FONT_FAMILY = 'ChalkFont'
 
 // ---- Palettes ------------------------------------------------------
@@ -11,104 +9,102 @@ const COVER_BLACK = '#000000'
 const COVER_WHITE = '#ffffff'
 
 const LIGHT = {
-  bg:      '#faf9f5',
-  text:    '#1a1a1a',
-  mid:     '#555555',
-  faint:   '#999999',
-  rule:    '#e8e4dd',
-  noteBg:  '#f0ede6',
-  accent:  '#d97706',
+  bg:     '#faf9f5',
+  text:   '#1a1a1a',
+  mid:    '#555555',
+  faint:  '#999999',
+  rule:   '#e8e4dd',
+  noteBg: '#f0ede6',
+  accent: '#d97706',
 }
+// Dark mode: true black, not blue
 const DARK = {
-  bg:      '#16213e',
-  text:    '#e8e4dd',
-  mid:     '#b0a898',
-  faint:   '#606060',
-  rule:    '#2a3560',
-  noteBg:  '#0f3460',
-  accent:  '#f59e0b',
+  bg:     '#0a0a0a',
+  text:   '#f0ece6',
+  mid:    '#a09890',
+  faint:  '#606060',
+  rule:   '#222222',
+  noteBg: '#141414',
+  accent: '#f59e0b',
 }
 
-// ---- Style factory (content pages only) ----------------------------
+// ---- Style factory (content pages) — all body text +2pt -----------
 function makeS(p: typeof LIGHT) {
   return StyleSheet.create({
     page: {
       paddingTop: 48, paddingBottom: 56, paddingHorizontal: 50,
       backgroundColor: p.bg,
       fontFamily: 'Helvetica',
-      fontSize: 10,
+      fontSize: 12,          // was 10
       color: p.text,
     },
     footer: {
       position: 'absolute',
       bottom: 24, left: 0, right: 0,
-      textAlign: 'center', fontSize: 9,
+      textAlign: 'center', fontSize: 11,   // was 9
       color: p.faint, fontFamily: 'Helvetica',
     },
     // Contents
-    contH1:    { fontFamily: 'Helvetica-Bold', fontSize: 26, color: p.text, marginBottom: 20 },
-    contCat:   { fontFamily: 'Helvetica-Bold', fontSize: 9, color: p.accent, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 14, marginBottom: 5 },
+    contH1:    { fontFamily: 'Helvetica-Bold', fontSize: 28, color: p.text, marginBottom: 20 },  // was 26
+    contCat:   { fontFamily: 'Helvetica-Bold', fontSize: 11, color: p.accent, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 14, marginBottom: 5 },  // was 9
     contRow:   { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
     contDots:  { flex: 1, borderBottomWidth: 0.5, borderBottomColor: p.rule, marginHorizontal: 6, marginBottom: 2 },
-    contTitle: { fontSize: 10, color: p.text },
-    contPage:  { fontSize: 9, color: p.faint },
+    contTitle: { fontSize: 12, color: p.text },   // was 10
+    contPage:  { fontSize: 11, color: p.faint },  // was 9
     // Recipe
-    recipeTitle:   { fontFamily: 'Helvetica-Bold', fontSize: 22, color: p.text, marginBottom: 10, lineHeight: 1.2 },
+    recipeTitle:   { fontFamily: 'Helvetica-Bold', fontSize: 24, color: p.text, marginBottom: 10, lineHeight: 1.2 },  // was 22
     heroImage:     { width: '100%', height: 190, objectFit: 'cover', borderRadius: 6, marginBottom: 10 },
-    metaText:      { fontSize: 9, color: p.mid, marginBottom: 10 },
-    secLabel:      { fontFamily: 'Helvetica-Bold', fontSize: 8, color: p.accent, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 12, marginBottom: 5, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: p.rule },
-    ingGroupLabel: { fontFamily: 'Helvetica-Bold', fontSize: 8, color: p.mid, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 7, marginBottom: 2 },
+    metaText:      { fontSize: 11, color: p.mid, marginBottom: 10 },   // was 9
+    secLabel:      { fontFamily: 'Helvetica-Bold', fontSize: 10, color: p.accent, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 12, marginBottom: 5, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: p.rule },  // was 8
+    ingGroupLabel: { fontFamily: 'Helvetica-Bold', fontSize: 10, color: p.mid, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 7, marginBottom: 2 },  // was 8
     ingRow:        { flexDirection: 'row', marginBottom: 2 },
-    ingBullet:     { width: 10, fontSize: 11, color: p.accent, lineHeight: 1.1 },
-    ingText:       { flex: 1, fontSize: 9.5, color: p.text, lineHeight: 1.45 },
+    ingBullet:     { width: 12, fontSize: 13, color: p.accent, lineHeight: 1.1 },  // was 11
+    ingText:       { flex: 1, fontSize: 11.5, color: p.text, lineHeight: 1.45 },   // was 9.5
     ingQty:        { fontFamily: 'Helvetica-Bold' },
     stepRow:       { flexDirection: 'row', marginBottom: 5 },
-    stepNum:       { width: 18, fontFamily: 'Helvetica-Bold', fontSize: 9, color: p.accent, marginTop: 1 },
-    stepText:      { flex: 1, fontSize: 9.5, color: p.text, lineHeight: 1.5 },
+    stepNum:       { width: 20, fontFamily: 'Helvetica-Bold', fontSize: 11, color: p.accent, marginTop: 1 },  // was 9
+    stepText:      { flex: 1, fontSize: 11.5, color: p.text, lineHeight: 1.5 },    // was 9.5
     notesBox:      { marginTop: 12, backgroundColor: p.noteBg, borderLeftWidth: 2, borderLeftColor: p.accent, paddingVertical: 7, paddingHorizontal: 10 },
-    notesLabel:    { fontFamily: 'Helvetica-Bold', fontSize: 7.5, color: p.accent, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 3 },
-    notesText:     { fontSize: 9, color: p.mid, lineHeight: 1.55 },
-    sourceText:    { marginTop: 8, fontSize: 8, color: p.faint },
+    notesLabel:    { fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: p.accent, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 3 },  // was 7.5
+    notesText:     { fontSize: 11, color: p.mid, lineHeight: 1.55 },   // was 9
+    sourceText:    { marginTop: 8, fontSize: 10, color: p.faint },     // was 8
   })
 }
 
-// Fixed styles shared across cover/category pages (always black)
+// ---- Cover / category page styles (always black) -------------------
 const cover = StyleSheet.create({
   page: {
     backgroundColor: COVER_BLACK,
-    padding: 0,
+    padding: 60,
   },
-  bgImage: {
-    position: 'absolute',
-    top: 0, left: 0,
-    width: '100%', height: '100%',
-    opacity: 0.28,
-    objectFit: 'cover',
-  },
-  content: {
+  inner: {
     flex: 1,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 64,
   },
   title: {
     fontFamily: CHALK_FONT_FAMILY,
-    fontSize: 56,
+    fontSize: 58,              // was 56, +2
     color: COVER_WHITE,
     textAlign: 'center',
     lineHeight: 1.3,
+    marginBottom: 28,
+  },
+  image: {
+    width: '50%',             // half page width, centred
+    height: 220,
+    objectFit: 'cover',
+    borderRadius: 6,
+    alignSelf: 'center',
   },
 })
 
 // ---- Helpers -------------------------------------------------------
 
-function pickRandom<T>(arr: T[]): T | null {
-  return arr.length > 0 ? arr[Math.floor(Math.random() * arr.length)] : null
-}
-
 function randomImage(recipes: Recipe[]): string | null {
-  return pickRandom(recipes.filter(r => r.hero_image_url))?.hero_image_url ?? null
+  const imgs = recipes.filter(r => r.hero_image_url)
+  return imgs.length > 0 ? imgs[Math.floor(Math.random() * imgs.length)].hero_image_url! : null
 }
 
 interface CatGroup {
@@ -117,32 +113,35 @@ interface CatGroup {
   recipes: { recipe: Recipe; pageNum: number }[]
 }
 
-/** Sort categories A→Z, recipes within each category A→Z, assign page numbers. */
+/**
+ * Groups recipes using the DB-defined category sort_order,
+ * with recipes sorted A→Z within each category.
+ */
 function buildGroups(recipes: Recipe[]): { groups: CatGroup[]; entries: ContentsEntry[] } {
-  // Group
   const map = new Map<string, { name: string; sortOrder: number; recipes: Recipe[] }>()
   recipes.forEach(r => {
-    const key  = r.category?.id ?? '__uncat__'
-    const name = r.category?.name ?? 'Uncategorised'
-    const so   = r.category?.sort_order ?? 9999
-    if (!map.has(key)) map.set(key, { name, sortOrder: so, recipes: [] })
+    const key = r.category?.id ?? '__uncat__'
+    if (!map.has(key)) map.set(key, {
+      name:      r.category?.name       ?? 'Uncategorised',
+      sortOrder: r.category?.sort_order ?? 9999,
+      recipes:   [],
+    })
     map.get(key)!.recipes.push(r)
   })
 
-  // Sort categories A→Z, then recipes within each A→Z
+  // Sort by defined sort_order (Starters → Pasta → Chicken…), name as tiebreaker
   const sorted = Array.from(map.values())
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map(g => ({
-      name:    g.name,
-      recipes: g.recipes.slice().sort((a, b) => a.title.localeCompare(b.title)),
-    }))
+    .sort((a, b) => a.sortOrder !== b.sortOrder
+      ? a.sortOrder - b.sortOrder
+      : a.name.localeCompare(b.name))
+    .map(g => ({ ...g, recipes: g.recipes.slice().sort((a, b) => a.title.localeCompare(b.title)) }))
 
   // Assign page numbers: cover = unnumbered, contents = 1, category pages = unnumbered, recipes = 2+
   let pageNum = 2
   const entries: ContentsEntry[] = []
   const groups: CatGroup[] = sorted.map(g => ({
-    name:    g.name,
-    image:   randomImage(g.recipes),
+    name:  g.name,
+    image: randomImage(g.recipes),
     recipes: g.recipes.map(recipe => {
       entries.push({ title: recipe.title, category: g.name, pageNum })
       return { recipe, pageNum: pageNum++ }
@@ -154,13 +153,13 @@ function buildGroups(recipes: Recipe[]): { groups: CatGroup[]; entries: Contents
 
 // ---- Sub-components ------------------------------------------------
 
-/** Black page used for both cover and category dividers. */
+/** Black page used for cover and category dividers. Title above, image centred below. */
 function BlackPage({ title, imageUrl }: { title: string; imageUrl: string | null }) {
   return (
     <Page size="A4" style={cover.page}>
-      {imageUrl && <Image style={cover.bgImage} src={imageUrl} />}
-      <View style={cover.content}>
+      <View style={cover.inner}>
         <Text style={cover.title}>{title}</Text>
+        {imageUrl && <Image style={cover.image} src={imageUrl} />}
       </View>
     </Page>
   )
@@ -169,14 +168,12 @@ function BlackPage({ title, imageUrl }: { title: string; imageUrl: string | null
 interface ContentsEntry { title: string; category: string; pageNum: number }
 
 function ContentsPage({ entries, s }: { entries: ContentsEntry[]; s: ReturnType<typeof makeS> }) {
-  // Preserve category order from entries (already alphabetical)
   const groups: { cat: string; items: ContentsEntry[] }[] = []
   const seen = new Map<string, number>()
   entries.forEach(e => {
     if (!seen.has(e.category)) { seen.set(e.category, groups.length); groups.push({ cat: e.category, items: [] }) }
     groups[seen.get(e.category)!].items.push(e)
   })
-
   return (
     <Page size="A4" style={s.page}>
       <Text style={s.contH1}>Contents</Text>
@@ -201,7 +198,6 @@ function RecipePage({ recipe, pageNum, s }: { recipe: Recipe; pageNum: number; s
   const sections    = (recipe.ingredient_sections ?? []).slice().sort((a, b) => a.display_order - b.display_order)
   const ingredients = (recipe.recipe_ingredients  ?? []).slice().sort((a, b) => a.display_order - b.display_order)
   const steps       = (recipe.method_steps        ?? []).slice().sort((a, b) => a.step_number   - b.step_number)
-
   const grouped = sections.length > 0
     ? sections.map(sec => ({ title: sec.title, items: ingredients.filter(i => i.section_id === sec.id) }))
     : [{ title: null, items: ingredients }]
@@ -209,11 +205,8 @@ function RecipePage({ recipe, pageNum, s }: { recipe: Recipe; pageNum: number; s
   return (
     <Page size="A4" style={s.page}>
       <Text style={s.recipeTitle}>{recipe.title}</Text>
-
       {recipe.hero_image_url && <Image style={s.heroImage} src={recipe.hero_image_url} />}
-
       {recipe.servings != null && <Text style={s.metaText}>Serves {recipe.servings}</Text>}
-
       {ingredients.length > 0 && (
         <View>
           <Text style={s.secLabel}>Ingredients</Text>
@@ -239,7 +232,6 @@ function RecipePage({ recipe, pageNum, s }: { recipe: Recipe; pageNum: number; s
           ))}
         </View>
       )}
-
       {steps.length > 0 && (
         <View>
           <Text style={s.secLabel}>Method</Text>
@@ -251,10 +243,8 @@ function RecipePage({ recipe, pageNum, s }: { recipe: Recipe; pageNum: number; s
           ))}
         </View>
       )}
-
-      {recipe.notes   && <View style={s.notesBox}><Text style={s.notesLabel}>Notes</Text><Text style={s.notesText}>{recipe.notes}</Text></View>}
-      {recipe.source  && <Text style={s.sourceText}>Source: {recipe.source}</Text>}
-
+      {recipe.notes  && <View style={s.notesBox}><Text style={s.notesLabel}>Notes</Text><Text style={s.notesText}>{recipe.notes}</Text></View>}
+      {recipe.source && <Text style={s.sourceText}>Source: {recipe.source}</Text>}
       <Text style={s.footer} fixed>{pageNum}</Text>
     </Page>
   )
@@ -269,19 +259,14 @@ export interface RecipeBookPDFProps {
 }
 
 export function RecipeBookPDF({ title, recipes, darkMode }: RecipeBookPDFProps) {
-  const s                    = makeS(darkMode ? DARK : LIGHT)
-  const coverImage           = randomImage(recipes)
-  const { groups, entries }  = buildGroups(recipes)
+  const s                   = makeS(darkMode ? DARK : LIGHT)
+  const coverImage          = randomImage(recipes)
+  const { groups, entries } = buildGroups(recipes)
 
   return (
     <Document title={title || 'Recipe Book'} author="Recipe App">
-      {/* Cover — black, chalk title, faint bg image */}
       <BlackPage title={title || 'My Recipe Book'} imageUrl={coverImage} />
-
-      {/* Contents */}
       <ContentsPage entries={entries} s={s} />
-
-      {/* Category divider + recipe pages */}
       {groups.map(group => (
         <React.Fragment key={group.name}>
           <BlackPage title={group.name} imageUrl={group.image} />
