@@ -2,19 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, FileText, PenLine, ChevronLeft, AlertTriangle, ImagePlus, Loader2, X } from 'lucide-react'
+import { Camera, FileText, PenLine, ChevronLeft, AlertTriangle, ImagePlus, Loader2, X, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { PhotoImport } from '@/components/import/PhotoImport'
 import { FileImport }  from '@/components/import/FileImport'
 import { RecipeForm }  from '@/components/recipe/RecipeForm'
+import { ExportPage }  from '@/components/export/ExportPage'
 import { createClient } from '@/lib/supabase/client'
 import type { ImportMethod, ImportResult, Category, Tag } from '@/types'
 import Link from 'next/link'
 
-const METHODS: { id: ImportMethod; label: string; icon: React.ElementType; description: string }[] = [
-  { id: 'manual', label: 'Manual', icon: PenLine,  description: 'Enter recipe details from scratch' },
-  { id: 'photo',  label: 'Photo',  icon: Camera,   description: 'Take or upload a photo of a recipe' },
-  { id: 'file',   label: 'File',   icon: FileText, description: 'PDF or Word document — one or multiple recipes' },
+type SlateId = ImportMethod | 'export'
+
+const SLATES: { id: SlateId; label: string; icon: React.ElementType; description: string }[] = [
+  { id: 'manual', label: 'Manual', icon: PenLine,   description: 'Enter recipe details from scratch' },
+  { id: 'photo',  label: 'Photo',  icon: Camera,    description: 'Take or upload a photo of a recipe' },
+  { id: 'file',   label: 'File',   icon: FileText,  description: 'PDF or Word document — one or multiple recipes' },
+  { id: 'export', label: 'Export', icon: BookOpen,  description: 'Export your recipe collection as a PDF book' },
 ]
 
 export default function ImportPage() {
@@ -22,7 +26,7 @@ export default function ImportPage() {
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [method, setMethod]               = useState<ImportMethod | null>(null)
+  const [method, setMethod]               = useState<SlateId | null>(null)
   // Multi-recipe queue
   const [importQueue, setImportQueue]     = useState<ImportResult[]>([])
   const [queueIndex, setQueueIndex]       = useState(0)
@@ -263,7 +267,7 @@ export default function ImportPage() {
     )
   }
 
-  // ---- Method picker + import screens -------------------------
+  // ---- Method picker + import/export screens ------------------
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex items-center gap-3 mb-6">
@@ -275,14 +279,14 @@ export default function ImportPage() {
           Back
         </Link>
         <h1 className="font-serif text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-          Import recipe
+          {method === 'export' ? 'Export recipes' : 'Import recipe'}
         </h1>
       </div>
 
       {!method ? (
-        /* Method picker */
+        /* Slate picker */
         <div className="flex flex-col gap-3">
-          {METHODS.map((m) => (
+          {SLATES.map((m) => (
             <button
               key={m.id}
               onClick={() => {
@@ -309,7 +313,7 @@ export default function ImportPage() {
           ))}
         </div>
       ) : (
-        /* Active import method */
+        /* Active slate */
         <div className="sm:space-y-5">
           <div className="hidden sm:flex items-center gap-3">
             <button
@@ -317,16 +321,17 @@ export default function ImportPage() {
               className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
             >
               <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-              Methods
+              Back
             </button>
             <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
-              {METHODS.find((m) => m.id === method)?.label}
+              {SLATES.find((m) => m.id === method)?.label}
             </h2>
           </div>
 
           <div className="rounded-2xl bg-white dark:bg-slate-850 border border-parchment-200 dark:border-slate-800 p-5">
-            {method === 'file'  && <FileImport  onResults={handleResults} />}
-            {method === 'photo' && <PhotoImport onResult={handleSingleResult} />}
+            {method === 'file'   && <FileImport  onResults={handleResults} />}
+            {method === 'photo'  && <PhotoImport onResult={handleSingleResult} />}
+            {method === 'export' && <ExportPage />}
           </div>
         </div>
       )}
