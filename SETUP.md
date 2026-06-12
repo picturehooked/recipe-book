@@ -5,7 +5,7 @@
 - Node.js 20+
 - A Supabase account (free tier is sufficient)
 - A GitHub account
-- A Netlify account
+- A Vercel account
 
 ---
 
@@ -15,7 +15,6 @@
 
 1. Go to [supabase.com](https://supabase.com) and create a new project
 2. Note your **Project URL** and **anon key** (Settings → API)
-https://gvdstvtnekuqdumirttz.supabase.co / sb_publishable_uRUCN9fy_jfkMhyiG-CCug_7SRVnfWh
 
 ### Run the schema
 
@@ -81,24 +80,42 @@ git push -u origin main
 
 ---
 
-## 4. Netlify Deployment
+## 4. Vercel Deployment
 
-1. Go to [netlify.com](https://netlify.com) → **Add new site → Import from Git**
+1. Go to [vercel.com](https://vercel.com) → **Add New Project → Import Git Repository**
 2. Select your GitHub repo
-3. Build settings are auto-detected from `netlify.toml`
-4. Under **Site configuration → Environment variables**, add:
+3. Framework is auto-detected as Next.js — leave build settings as default
+4. Under **Environment Variables**, add:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 5. Click **Deploy**
 
-Install the Netlify Next.js plugin if prompted:
-```bash
-npm install @netlify/plugin-nextjs --save-dev
-```
+Vercel auto-deploys on every push to `main`.
 
 ---
 
-## 5. Supabase Auth (Future)
+## 5. Image Optimisation
+
+The app uses Next.js `next/image` for all recipe images. To avoid hitting Vercel's Image
+Optimization transformation limits, two rules are in place:
+
+**Images are uploaded to Supabase Storage on import.** When a recipe is imported via URL,
+the import route (`/api/import/url`) downloads the external image and uploads it to the
+`recipe-images` Supabase Storage bucket before saving the recipe. The Supabase URL is stored,
+not the original external URL. This means `next/image` only ever serves images from Supabase,
+not from external domains.
+
+**Cache TTL is set to 30 days.** `next.config.js` sets `minimumCacheTTL: 2592000`. Each
+unique image is transformed once (per size/format variant) and cached for 30 days. Do not
+reduce this value without understanding the transformation cost implications.
+
+The only permitted remote pattern in `next.config.js` is `**.supabase.co`. Do not add
+external image domains (BBC Good Food, Unsplash, etc.) — doing so would route external images
+through Vercel's transformation pipeline on every page load.
+
+---
+
+## 6. Supabase Auth (Future)
 
 The database is architected for multi-user support. When you're ready to add authentication:
 
@@ -113,7 +130,7 @@ The database is architected for multi-user support. When you're ready to add aut
 
 ---
 
-## 6. Adding an OpenAI Key (Optional)
+## 7. Adding an OpenAI Key (Optional)
 
 If you add `OPENAI_API_KEY` to your environment variables, the URL import route at
 `/api/import/url` can be enhanced to use GPT-4o Vision for better structured extraction
@@ -132,10 +149,11 @@ src/
 │   ├── recipes/new/          # Create recipe
 │   ├── import/               # Import workflow
 │   └── api/                  # API routes
-│       ├── import/url/       # URL recipe scraping
+│       ├── import/url/       # URL recipe scraping + image upload
 │       └── ingredients/      # Ingredient CRUD
 ├── components/
 │   ├── browse/               # Browse page
+│   ├── export/               # PDF cookbook and menu export
 │   ├── layout/               # Header, ThemeProvider
 │   ├── recipe/               # Card, Grid, View, Form
 │   ├── search/               # SearchBar, FilterPanel
@@ -172,3 +190,17 @@ correct relational structure for per-user favourites when auth is added.
 to third parties for OCR. This is faster for single-page recipes, respects privacy, and avoids
 API costs. For lower-quality handwritten recipes, a future OpenAI Vision endpoint can be wired
 in as a fallback via the existing `/api/import/url` pattern.
+
+**Why upload images to Supabase Storage on import rather than storing external URLs?**
+Storing external URLs (e.g. from BBC Good Food) causes every recipe card render to trigger a
+Vercel Image Optimization transformation for that URL. With six device sizes and two formats
+(avif + webp), a single external image can generate up to 12 transformation variants per cache
+expiry cycle. Uploading to Supabase Storage on import means all images are served from a
+single trusted domain, transformations are cached for 30 days, and external domains do not
+need to be whitelisted in `next.config.js`.
+
+**Why does PDF export bypass Vercel image optimisation?** The export components
+(`RecipeBookPDF`, `ExportPDFButton`) use `@react-pdf/renderer`, which fetches images directly
+from Supabase Storage via `fetch()` in the browser. The `next/image` pipeline is never
+involved, so PDF generation does not consume image transformation quota regardless of how many
+recipes are exported.
