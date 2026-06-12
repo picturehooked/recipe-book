@@ -1,9 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { parseOcrText } from '@/lib/utils/ocr-parser'
 import type { ImportResult, ImportedRecipe } from '@/types'
 
-// Timeout for external fetch
 const FETCH_TIMEOUT_MS = 10_000
+
+async function uploadImageToSupabase(externalUrl: string): Promise<string> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) return externalUrl
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    const res = await fetch(externalUrl, { signal: AbortSignal.timeout(8_000) })
+    if (!res.ok) return externalUrl
+
+    const contentType = res.headers.get('content-type') ?? 'image/jpeg'
+    const buffer = await res.arrayBuffer()
+
+    const extFromType: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/jpg':  'jpg',
+      'image/png':  'png',
+      'image/webp': 'webp',
+      'image/avif': 'avif',
+      'image/gif':  'gif',
+    }
+    const ext = extFromType[contentType.split(';')[0].trim()]
+      ?? externalUrl.split('.').pop()?.split('?')[0]?.slice(0, 4)
+      ?? 'jpg'
+
+    const filename = `imported/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
+
+    const { error } = await supabase.storage
+      .from('recipe-images')
+      .upload(filename, buffer, { contentType, upsert: false })
+
+    if (error) return externalUrl
+
+    const { data } = supabase.storage
+      .from('recipe-images')
+      .getPublicUrl(filename)
+
+    return data.publicUrl
+  } catch {
+    return externalUrl
+  }
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>> {
   const { url } = await req.json().catch(() => ({ url: '' }))
@@ -12,7 +56,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
     return NextResponse.json({ success: false, error: 'No URL provided' }, { status: 400 })
   }
 
-  // Basic URL validation
   let parsedUrl: URL
   try {
     parsedUrl = new URL(url)
@@ -21,7 +64,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
     return NextResponse.json({ success: false, error: 'Invalid URL' }, { status: 400 })
   }
 
-  // Fetch the page
   let html: string
   try {
     const controller = new AbortController()
@@ -61,7 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
     })
   }
 
-  // ---- Structured data extraction (JSON-LD) ----------------
   const jsonLdMatch = html.match(
     /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
   )
@@ -71,7 +112,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
       try {
         const json = JSON.parse(block.replace(/<script[^>]*>/, '').replace(/<\/script>/, '').trim())
 
-        // Flatten: handle top-level array, @graph wrapper, or plain object
         let candidates: any[] = []
         if (Array.isArray(json)) {
           candidates = json
@@ -81,7 +121,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
           candidates = [json]
         }
 
-        // Also expand any nested @graph arrays inside individual candidates
         const flat: any[] = []
         for (const c of candidates) {
           if (c['@graph'] && Array.isArray(c['@graph'])) {
@@ -97,13 +136,13 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
 
         const recipe = flat.find(isRecipe)
         if (recipe) {
-          return NextResponse.json({ success: true, recipe: extractFromJsonLd(recipe) })
+          const extracted = await extractFromJsonLd(recipe)
+          return NextResponse.json({ success: true, recipe: extracted })
         }
       } catch { continue }
     }
   }
 
-  // ---- OpenGraph / meta title + text extraction ------------
   const titleMatch =
     html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ??
     html.match(/<title[^>]*>([^<]+)<\/title>/i)
@@ -111,7 +150,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
   const imageMatch =
     html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
 
-  // Strip all HTML tags and extract visible text
   const visibleText = html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -132,12 +170,13 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
 
   const parsed = parseOcrText(visibleText)
 
-  // Override title and image with meta data if OCR didn't find them
   if (titleMatch?.[1]) {
     parsed.title = decodeHTMLEntities(titleMatch[1].trim())
   }
   if (imageMatch?.[1] && !parsed.hero_image_url) {
-    parsed.hero_image_url = imageMatch[1]
+    parsed.hero_image_url = await uploadImageToSupabase(imageMatch[1])
+  } else if (parsed.hero_image_url) {
+    parsed.hero_image_url = await uploadImageToSupabase(parsed.hero_image_url)
   }
   parsed.source = url
 
@@ -148,26 +187,22 @@ export async function POST(req: NextRequest): Promise<NextResponse<ImportResult>
   })
 }
 
-// ---- JSON-LD Recipe extraction ----------------------------
-
-function extractFromJsonLd(recipe: any): ImportedRecipe {
+async function extractFromJsonLd(recipe: any): Promise<ImportedRecipe> {
   const title       = recipe.name ?? 'Untitled Recipe'
   const servings    = parseServings(recipe.recipeYield)
   const image       = Array.isArray(recipe.image) ? recipe.image[0] : recipe.image
-  const imageUrl    = typeof image === 'string' ? image : image?.url
+  const rawImageUrl = typeof image === 'string' ? image : image?.url
+  const imageUrl    = rawImageUrl ? await uploadImageToSupabase(rawImageUrl) : undefined
 
-  // Ingredients
   const rawIngredients: string[] = Array.isArray(recipe.recipeIngredient)
     ? recipe.recipeIngredient
     : []
 
   const { parseOcrText } = require('@/lib/utils/ocr-parser')
 
-  // Parse ingredient lines individually for clean extraction
   const ingredientText = ['Ingredients', ...rawIngredients].join('\n')
   const parsed = parseOcrText(ingredientText)
 
-  // Method steps
   const instructions = Array.isArray(recipe.recipeInstructions)
     ? recipe.recipeInstructions
     : []
@@ -176,7 +211,6 @@ function extractFromJsonLd(recipe: any): ImportedRecipe {
     .slice(0, 10)
     .map((step: any) => {
       const text = typeof step === 'string' ? step : step.text ?? ''
-      // Condense to ~2 lines
       const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text]
       return sentences.slice(0, 2).join(' ').trim().slice(0, 240)
     })
