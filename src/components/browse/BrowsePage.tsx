@@ -4,6 +4,7 @@ import { useMemo }        from 'react'
 import { useRecipes }     from '@/hooks/useRecipes'
 import { useSearch }      from '@/hooks/useSearch'
 import { useFilterStore } from '@/store/filterStore'
+import { useAuth }        from '@/hooks/useAuth'
 import { SearchBar }      from '@/components/search/SearchBar'
 import { FilterPanel }    from '@/components/search/FilterPanel'
 import { RecipeGrid }     from '@/components/recipe/RecipeGrid'
@@ -16,6 +17,7 @@ interface BrowsePageProps {
 
 export function BrowsePage({ categories, tags }: BrowsePageProps) {
   const { recipes, loading } = useRecipes()
+  const { isAuthenticated }  = useAuth()
   const filters = useFilterStore() as FilterState
 
   // Shuffle once per fetch — order randomises on each visit
@@ -46,6 +48,7 @@ export function BrowsePage({ categories, tags }: BrowsePageProps) {
       <RecipeGrid
         recipes={filtered}
         loading={loading}
+        isAuthenticated={isAuthenticated}
       />
     </div>
   )

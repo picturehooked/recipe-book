@@ -15,6 +15,7 @@ import { FavouriteButton } from '@/components/ui/FavouriteButton'
 import { formatServings } from '@/lib/utils/formatters'
 import { scaleQuantity, formatQuantity } from '@/lib/utils/conversions'
 import { useDeleteRecipe } from '@/hooks/useRecipes'
+import { useAuth } from '@/hooks/useAuth'
 import type { Recipe, RecipeIngredient } from '@/types'
 
 interface RecipeViewProps {
@@ -26,6 +27,7 @@ type ActiveTab = 'ingredients' | 'method'
 export function RecipeView({ recipe }: RecipeViewProps) {
   const router   = useRouter()
   const deleteRecipe = useDeleteRecipe()
+  const { isAuthenticated } = useAuth()
 
   // Servings scaler
   const baseServings    = recipe.servings ?? 4
@@ -122,27 +124,33 @@ export function RecipeView({ recipe }: RecipeViewProps) {
             </Link>
 
             <div className="flex items-center gap-1">
-              <FavouriteButton
-                recipeId={recipe.id}
-                active={recipe.is_favourite}
-                size="md"
-              />
-              <Link href={`/recipes/${recipe.id}/edit`}>
-                <Button variant="ghost" size="sm">
-                  <Edit2 className="h-4 w-4" strokeWidth={1.75} />
-                  <span className="hidden sm:inline">Edit</span>
+              {isAuthenticated && (
+                <FavouriteButton
+                  recipeId={recipe.id}
+                  active={recipe.is_favourite}
+                  size="md"
+                />
+              )}
+              {isAuthenticated && (
+                <Link href={`/recipes/${recipe.id}/edit`}>
+                  <Button variant="ghost" size="sm">
+                    <Edit2 className="h-4 w-4" strokeWidth={1.75} />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                </Link>
+              )}
+              {isAuthenticated && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  loading={deleting}
+                  className={confirmDelete ? 'text-red-500 hover:text-red-600' : 'text-zinc-400 hover:text-red-500'}
+                >
+                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="hidden sm:inline">{confirmDelete ? 'Confirm' : ''}</span>
                 </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDelete}
-                loading={deleting}
-                className={confirmDelete ? 'text-red-500 hover:text-red-600' : 'text-zinc-400 hover:text-red-500'}
-              >
-                <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                <span className="hidden sm:inline">{confirmDelete ? 'Confirm' : ''}</span>
-              </Button>
+              )}
             </div>
           </div>
         </div>

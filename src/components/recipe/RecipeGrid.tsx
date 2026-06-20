@@ -3,12 +3,13 @@ import { cn } from '@/lib/utils/cn'
 import type { RecipeSummary } from '@/types'
 
 interface RecipeGridProps {
-  recipes:   RecipeSummary[]
-  loading?:  boolean
-  className?: string
+  recipes:         RecipeSummary[]
+  loading?:        boolean
+  className?:      string
+  isAuthenticated?: boolean
 }
 
-export function RecipeGrid({ recipes, loading, className }: RecipeGridProps) {
+export function RecipeGrid({ recipes, loading, className, isAuthenticated = false }: RecipeGridProps) {
   if (loading) {
     return (
       <div className={cn(
@@ -42,7 +43,7 @@ export function RecipeGrid({ recipes, loading, className }: RecipeGridProps) {
       className,
     )}>
       {recipes.map((recipe) => (
-        <RecipeCard key={recipe.id} recipe={recipe} />
+        <RecipeCard key={recipe.id} recipe={recipe} isAuthenticated={isAuthenticated} />
       ))}
     </div>
   )

@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import { Sun, Moon, BookOpen, Plus, ListOrdered } from 'lucide-react'
+import { Sun, Moon, BookOpen, Plus, ListOrdered, LogOut, LogIn } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { useAuth } from '@/hooks/useAuth'
 
 interface HeaderProps {
   showAddButton?: boolean
@@ -13,8 +15,16 @@ interface HeaderProps {
 export function Header({ showAddButton = true }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const { isAuthenticated, signOut } = useAuth()
+  const router = useRouter()
 
   useEffect(() => setMounted(true), [])
+
+  async function handleSignOut() {
+    await signOut()
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <header className={cn(
@@ -58,8 +68,8 @@ export function Header({ showAddButton = true }: HeaderProps) {
               <span className="hidden sm:inline">Ingredients</span>
             </Link>
 
-            {/* New recipe / Import */}
-            {showAddButton && (
+            {/* New recipe — only shown when authenticated */}
+            {showAddButton && isAuthenticated && (
               <Link
                 href="/import"
                 className={cn(
@@ -74,6 +84,43 @@ export function Header({ showAddButton = true }: HeaderProps) {
                 <Plus className="h-4 w-4" strokeWidth={2} />
                 <span className="hidden sm:inline">New recipe</span>
               </Link>
+            )}
+
+            {/* Auth button */}
+            {mounted && (
+              isAuthenticated ? (
+                <button
+                  onClick={handleSignOut}
+                  title="Sign out"
+                  className={cn(
+                    'ml-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5',
+                    'text-sm font-medium',
+                    'text-zinc-500 dark:text-zinc-400',
+                    'hover:text-zinc-900 dark:hover:text-zinc-100',
+                    'hover:bg-parchment-100 dark:hover:bg-slate-800',
+                    'transition-colors',
+                  )}
+                >
+                  <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="hidden sm:inline">Sign out</span>
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  title="Sign in"
+                  className={cn(
+                    'ml-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5',
+                    'text-sm font-medium',
+                    'text-zinc-500 dark:text-zinc-400',
+                    'hover:text-zinc-900 dark:hover:text-zinc-100',
+                    'hover:bg-parchment-100 dark:hover:bg-slate-800',
+                    'transition-colors',
+                  )}
+                >
+                  <LogIn className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="hidden sm:inline">Sign in</span>
+                </Link>
+              )
             )}
 
             {/* Theme toggle */}

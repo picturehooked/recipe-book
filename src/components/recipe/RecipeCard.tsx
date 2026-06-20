@@ -5,11 +5,12 @@ import { FavouriteButton } from '@/components/ui/FavouriteButton'
 import type { RecipeSummary } from '@/types'
 
 interface RecipeCardProps {
-  recipe:    RecipeSummary
-  className?: string
+  recipe:          RecipeSummary
+  className?:      string
+  isAuthenticated?: boolean
 }
 
-export function RecipeCard({ recipe, className }: RecipeCardProps) {
+export function RecipeCard({ recipe, className, isAuthenticated = false }: RecipeCardProps) {
   return (
     <Link
       href={`/recipes/${recipe.id}`}
@@ -40,25 +41,29 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           </div>
         )}
 
-        {/* Favourite button — mobile: xs at bottom-right; desktop: sm at top-right */}
-        <div className="sm:hidden absolute bottom-2 right-2">
-          <div className="rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <FavouriteButton
-              recipeId={recipe.id}
-              active={recipe.is_favourite}
-              size="xs"
-            />
-          </div>
-        </div>
-        <div className="hidden sm:block absolute top-2 right-2">
-          <div className="rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <FavouriteButton
-              recipeId={recipe.id}
-              active={recipe.is_favourite}
-              size="sm"
-            />
-          </div>
-        </div>
+        {/* Favourite button — only shown when authenticated */}
+        {isAuthenticated && (
+          <>
+            <div className="sm:hidden absolute bottom-2 right-2">
+              <div className="rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <FavouriteButton
+                  recipeId={recipe.id}
+                  active={recipe.is_favourite}
+                  size="xs"
+                />
+              </div>
+            </div>
+            <div className="hidden sm:block absolute top-2 right-2">
+              <div className="rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <FavouriteButton
+                  recipeId={recipe.id}
+                  active={recipe.is_favourite}
+                  size="sm"
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Category badge — desktop only */}
         {recipe.category && (

@@ -8,7 +8,10 @@ const FETCH_TIMEOUT_MS = 10_000
 async function uploadImageToSupabase(externalUrl: string): Promise<string> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    // Use service role key for server-side uploads — bypasses Storage RLS
+    // so imports keep working after Storage policies restrict anon uploads.
+    // This key is never sent to the browser (no NEXT_PUBLIC_ prefix).
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     if (!supabaseUrl || !supabaseKey) return externalUrl
 
     const supabase = createClient(supabaseUrl, supabaseKey)
